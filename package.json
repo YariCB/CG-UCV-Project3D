@@ -1,0 +1,41 @@
+{
+  "name": "cg2-app",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "nw-preview": "npm run build && npx nw ./**/*",
+    "nw-build": "npm run build && npx nwbuild ./**/* --mode=build --version=latest --flavor=sdk --winIco=assets/icon.ico",
+    "prod": "npm run build:nw"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "nw": "^0.44.1-sdk",
+    "nw-builder": "^4.16.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.1.0",
+    "vite-plugin-checker": "^0.11.0"
+  },
+  "window": {
+    "title": "Computación Gráfica - Proyecto 1 - Yarima Contreras",
+    "icon": "src/assets/icon.png",
+    "toolbar": true,
+    "position": "center",
+    "width": 1280,
+    "height": 720
+  }
+}
