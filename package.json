@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "nw-preview": "npm run build && npx nw ./**/*",
     "nw-build": "npm run build && npx nwbuild ./**/* --mode=build --version=latest --flavor=sdk --winIco=assets/icon.ico",
-    "prod": "npm run build:nw"
+    "prod": "npm run nw-build"
   },
   "keywords": [],
   "author": "",
