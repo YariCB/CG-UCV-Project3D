@@ -43,13 +43,18 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 
 function parseRgba(colorString: string): RGBA {
   const m = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!m) return { r: 0, g: 0, b: 0, a: 1 };
-  return {
-    r: parseInt(m[1]),
-    g: parseInt(m[2]),
-    b: parseInt(m[3]),
-    a: m[4] !== undefined ? parseFloat(m[4]) : 1
-  };
+  if (!m) return { r: 0, g: 0, b: 0, a: 255 };
+  const r = parseInt(m[1]);
+  const g = parseInt(m[2]);
+  const b = parseInt(m[3]);
+  let a = 255;
+  if (m[4] !== undefined) {
+    const parsedA = parseFloat(m[4]);
+    // support both 0..1 and 0..255 alpha encodings
+    if (parsedA <= 1) a = Math.round(parsedA * 255);
+    else a = Math.round(parsedA);
+  }
+  return { r, g, b, a };
 }
 
 const ColorWheel: React.FC<ColorWheelProps> = ({ onColorSelect, currentColor, size = 150 }) => {
@@ -205,20 +210,22 @@ const ColorWheel: React.FC<ColorWheelProps> = ({ onColorSelect, currentColor, si
             const dy = y - cy;
 
             if (mode === 'ring') {
-                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                const newHue = (angle + 90 + 360) % 360;
-                setHue(newHue);
+              let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+              const newHue = (angle + 90 + 360) % 360;
+              setHue(newHue);
 
-                const { r, g, b, a } = parseRgba(currentColor);
-                const [, curS, curV] = rgbToHsv(r, g, b);
-                const [nR, nG, nB] = hsvToRgb(newHue, curS, curV);
-                onColorSelect(`rgba(${nR}, ${nG}, ${nB}, ${a})`);
+              const { r, g, b, a } = parseRgba(currentColor); // a is 0..255 now
+              const [, curS, curV] = rgbToHsv(r, g, b);
+              const [nR, nG, nB] = hsvToRgb(newHue, curS, curV);
+              const cssA = Math.max(0, Math.min(1, a / 255));
+              onColorSelect(`rgba(${nR}, ${nG}, ${nB}, ${cssA})`);
             } else if (mode === 'tri') {
-                const bc = barycentricColor(x, y);
-                if (bc) {
-                    const { a } = parseRgba(currentColor);
-                    onColorSelect(`rgba(${bc.r}, ${bc.g}, ${bc.b}, ${a})`);
-                }
+              const bc = barycentricColor(x, y);
+              if (bc) {
+                const { a } = parseRgba(currentColor);
+                const cssA = Math.max(0, Math.min(1, a / 255));
+                onColorSelect(`rgba(${bc.r}, ${bc.g}, ${bc.b}, ${cssA})`);
+              }
             }
         }
 
