@@ -82,3 +82,29 @@ export function assignMaterials(obj: OBJData, materials: Record<string, Material
   }
   return meshes;
 }
+
+// Normalización del modelo OBJ para centrarlo y escalarlo
+export function normalizeOBJ(obj: OBJData) {
+  const xs = obj.vertices.map(v => v[0]);
+  const ys = obj.vertices.map(v => v[1]);
+  const zs = obj.vertices.map(v => v[2]);
+
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+
+  const center: [number, number, number] = [
+    (minX + maxX) / 2,
+    (minY + maxY) / 2,
+    (minZ + maxZ) / 2,
+  ];
+
+  const sizeX = maxX - minX;
+  const sizeY = maxY - minY;
+  const sizeZ = maxZ - minZ;
+  const maxSize = Math.max(sizeX, sizeY, sizeZ);
+
+  const scale = 2.0 / maxSize; // Escala para que quepa en [-1,1]
+
+  return { center, scale };
+}

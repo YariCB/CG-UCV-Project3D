@@ -1,3 +1,5 @@
+import { mat4 } from 'gl-matrix';
+
 let gl: WebGLRenderingContext | null = null;
 
 export function initWebGL(canvas: HTMLCanvasElement): boolean {
@@ -34,11 +36,12 @@ function createProgram(vsSource: string, fsSource: string): WebGLProgram {
   return program;
 }
 
-// GLSL mínimo: posición y color uniforme
+// Vertex shader con matriz MVP
 const vsSource = `
 attribute vec3 aPosition;
+uniform mat4 uMVP;
 void main() {
-  gl_Position = vec4(aPosition, 1.0);
+  gl_Position = uMVP * vec4(aPosition, 1.0);
 }
 `;
 
@@ -51,6 +54,25 @@ void main() {
 `;
 
 let program: WebGLProgram | null = null;
+
+
+// // GLSL mínimo: posición y color uniforme
+// const vsSource = `
+// attribute vec3 aPosition;
+// void main() {
+//   gl_Position = vec4(aPosition, 1.0);
+// }
+// `;
+
+// const fsSource = `
+// precision mediump float;
+// uniform vec3 uColor;
+// void main() {
+//   gl_FragColor = vec4(uColor, 1.0);
+// }
+// `;
+
+// let program: WebGLProgram | null = null;
 
 export function setupShaders() {
   program = createProgram(vsSource, fsSource);
@@ -72,6 +94,23 @@ export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color:
 
   const uColor = gl.getUniformLocation(program, "uColor");
   gl.uniform3fv(uColor, mesh.color);
+
+  // Matriz MVP
+  const model = mat4.create();
+  if (mesh.center && mesh.scale) {
+    mat4.translate(model, model, [0, 0, -3]); // mover atrás
+    mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+    mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+  }
+
+  const projection = mat4.create();
+  mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
+
+  const mvp = mat4.create();
+  mat4.multiply(mvp, projection, model);
+
+  const uMVP = gl.getUniformLocation(program, "uMVP");
+  gl.uniformMatrix4fv(uMVP, false, mvp);
 
   gl.drawArrays(gl.TRIANGLES, 0, flatVerts.length / 3);
 }

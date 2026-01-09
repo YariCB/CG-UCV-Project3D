@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
-import { parseOBJ, parseMTL, assignMaterials, Material, OBJData } from '../lib/objLoader';
+import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
 
 interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: (m: any[]) => void }
 const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => {
@@ -107,8 +107,14 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
 
       // Asignar materiales a sub-mallas
       const meshes = assignMaterials(objData, materials);
+
+      // Normalizar
+      const { center, scale } = normalizeOBJ(objData);
+      const normalizedMeshes = meshes.map(m => ({ ...m, center, scale }));
+
       console.log(meshes);
-      setMeshes(meshes);
+      console.log(normalizedMeshes);
+      setMeshes(normalizedMeshes);
     };
 
   // Close picker when clicking outside
