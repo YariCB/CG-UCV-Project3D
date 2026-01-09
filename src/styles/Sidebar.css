@@ -1,7 +1,7 @@
 /* Contenedor Principal de la Barra Lateral */
 .sidebar-container {
-    width: 210px;
-    min-width: 80px;
+    width: 260px;
+    min-width: 160px;
     background-color: #2e2e2e;
     color: #ffffff;
     padding: 10px 0;
@@ -104,6 +104,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 4px 10px;
+    position: relative;
 }
 
 .input-row label {
@@ -142,6 +143,21 @@
     display: flex;
     gap: 6px;
 }
+
+.hidden-file-input { display: none; }
+
+.aa-label { font-size: 10px; font-weight: 700; }
+
+.preview-group { display: flex; align-items: center; gap: 8px; }
+
+.color-swatch { width: 28px; height: 18px; border: 1px solid #000; border-radius: 4px; }
+
+.rgb-inputs { display: flex; gap: 6px; margin-top: 8px; }
+.rgba-input-item { display: flex; flex-direction: column; align-items: center; }
+.rgba-input-item label { font-size: 11px; }
+.color-component-input { width: 56px; text-align: center; font-size: 12px; background: #1b1b1b; border: 1px solid #444; color: #fff; padding: 4px; border-radius: 4px; }
+
+.mt-10 { margin-top: 10px; }
 
 /* Grupo de transformación (X, Y, Z) */
 .transform-group {

@@ -1,88 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
-
-interface OBJData {
-  vertices: number[][];
-  normals: number[][];
-  faces: { v: number[]; n?: number[]; material?: string }[];
-}
-
-function parseOBJ(text: string): OBJData {
-  const lines = text.split("\n");
-  const vertices: number[][] = [];
-  const normals: number[][] = [];
-  const faces: any[] = [];
-  let currentMaterial: string | undefined;
-
-  for (const line of lines) {
-    const parts = line.trim().split(/\s+/);
-    switch (parts[0]) {
-      case "v":
-        vertices.push(parts.slice(1).map(Number));
-        break;
-      case "vn":
-        normals.push(parts.slice(1).map(Number));
-        break;
-      case "f":
-        const vIdx = parts.slice(1).map(p => parseInt(p.split("/")[0]) - 1);
-        faces.push({ v: vIdx, material: currentMaterial });
-        break;
-      case "usemtl":
-        currentMaterial = parts[1];
-        break;
-    }
-  }
-  return { vertices, normals, faces };
-}
-
-interface Material { Kd: [number, number, number] }
-
-function parseMTL(text: string): Record<string, Material> {
-  const lines = text.split("\n");
-  const materials: Record<string, Material> = {};
-  let current: string | null = null;
-
-  for (const line of lines) {
-    const parts = line.trim().split(/\s+/);
-    switch (parts[0]) {
-      case "newmtl":
-        current = parts[1];
-        materials[current] = { Kd: [0.7, 0.7, 0.7] }; // default
-        break;
-      case "Kd":
-        if (current) {
-          materials[current].Kd = parts.slice(1).map(Number) as [number, number, number];
-        }
-        break;
-    }
-  }
-  return materials;
-}
-
-function assignMaterials(obj: OBJData, materials: Record<string, Material>) {
-  const meshes: { vertices: number[][]; faces: number[][]; color: [number, number, number] }[] = [];
-
-  const grouped = obj.faces.reduce((acc, face) => {
-    const mat = face.material || "default";
-    if (!acc[mat]) acc[mat] = [];
-    acc[mat].push(face);
-    return acc;
-  }, {} as Record<string, any[]>);
-
-  for (const mat in grouped) {
-    meshes.push({
-      vertices: obj.vertices,
-      faces: grouped[mat].map(f => f.v),
-      color: materials[mat]?.Kd || [0.7, 0.7, 0.7]
-    });
-  }
-  return meshes;
-}
-
+import { parseOBJ, parseMTL, assignMaterials, Material, OBJData } from '../lib/objLoader';
 
 interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: (m: any[]) => void }
-const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
+const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para simular la selección (esto vendría de tu lógica WebGL)
@@ -140,15 +62,42 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
       const objText = await objFile.text();
       const objData = parseOBJ(objText);
 
-      // Buscar MTL en el mismo directorio
-      const mtlFile = Array.from(files).find(f => f.name.endsWith(".mtl"));
+      // Buscar MTL: preferir el mtllib indicado en el OBJ, si existe; intentar emparejar por nombre/base
       let materials: Record<string, Material> = {};
+      const fileArray = Array.from(files);
+      let mtlFile: File | undefined;
+
+      if (objData.mtllib) {
+        // mtllib puede contener rutas, tomar sólo el basename y buscar coincidencias
+        const libName = objData.mtllib.split(/[/\\]/).pop();
+        if (libName) {
+          mtlFile = fileArray.find(f => f.name === libName || f.name.endsWith(libName));
+        }
+      }
+
+      // si no se encontró aún, intentar buscar un .mtl con mismo nombre que el OBJ
+      if (!mtlFile) {
+        const guessed = objFile.name.replace(/\.obj$/i, '.mtl');
+        mtlFile = fileArray.find(f => f.name === guessed || f.name.endsWith(guessed));
+      }
+
+      // fallback: si hay algún .mtl en la lista, tomar el primero
+      if (!mtlFile) {
+        mtlFile = fileArray.find(f => f.name.toLowerCase().endsWith('.mtl'));
+      }
+
       if (mtlFile) {
-        const mtlText = await mtlFile.text();
-        materials = parseMTL(mtlText);
+        try {
+          const mtlText = await mtlFile.text();
+          materials = parseMTL(mtlText);
+        } catch (err) {
+          console.warn('Error leyendo MTL:', err);
+          alert('Error leyendo archivo MTL. Se asignará color gris por defecto.');
+          materials['default'] = { Kd: [0.7, 0.7, 0.7] };
+        }
       } else {
-        alert("No se encontró archivo MTL. Se asignará color gris por defecto.");
-        materials["default"] = { Kd: [0.7, 0.7, 0.7] };
+        alert('No se encontró archivo MTL. Se asignará color gris por defecto.');
+        materials['default'] = { Kd: [0.7, 0.7, 0.7] };
       }
 
       // Asignar materiales a sub-mallas
@@ -176,11 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
 
     useEffect(() => {
       const p = parseRgba(color);
-      setInputs(prev => ({
-        r: p.r.toString(),
-        g: p.g.toString(),
-        b: p.b.toString()
-      }));
+      setInputs({ r: p.r.toString(), g: p.g.toString(), b: p.b.toString() });
     }, [color]);
 
     const handleChange = (comp: 'r' | 'g' | 'b', value: string) => {
@@ -196,30 +141,19 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
       onColorChange(`rgba(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)}, ${p.a})`);
     };
 
-    const inputStyle: React.CSSProperties = {
-      width: '56px',
-      textAlign: 'center',
-      fontSize: '12px',
-      background: '#1b1b1b',
-      border: '1px solid #444',
-      color: '#fff',
-      padding: '4px',
-      borderRadius: 4
-    };
-
     return (
-      <div style={{display: 'flex', gap: 6, marginTop: 8}}>
-        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-          <label style={{fontSize: 11}}>R</label>
-          <input type="number" min={0} max={255} value={inputs.r} onChange={e => handleChange('r', e.target.value)} style={inputStyle} />
+      <div className="rgb-inputs">
+        <div className="rgba-input-item">
+          <label>R</label>
+          <input className="color-component-input" type="number" min={0} max={255} value={inputs.r} onChange={e => handleChange('r', e.target.value)} />
         </div>
-        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-          <label style={{fontSize: 11}}>G</label>
-          <input type="number" min={0} max={255} value={inputs.g} onChange={e => handleChange('g', e.target.value)} style={inputStyle} />
+        <div className="rgba-input-item">
+          <label>G</label>
+          <input className="color-component-input" type="number" min={0} max={255} value={inputs.g} onChange={e => handleChange('g', e.target.value)} />
         </div>
-        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-          <label style={{fontSize: 11}}>B</label>
-          <input type="number" min={0} max={255} value={inputs.b} onChange={e => handleChange('b', e.target.value)} style={inputStyle} />
+        <div className="rgba-input-item">
+          <label>B</label>
+          <input className="color-component-input" type="number" min={0} max={255} value={inputs.b} onChange={e => handleChange('b', e.target.value)} />
         </div>
       </div>
     );
@@ -237,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
             <ion-icon name="save-sharp"></ion-icon>
           </button>
         </div>
-        <input type="file" ref={fileInputRef} style={{ display: 'none' }} multiple accept=".obj,.mtl" onChange={e => handleFileUpload(e.target.files)} />
+        <input type="file" ref={fileInputRef} className="hidden-file-input" multiple accept=".obj,.mtl" onChange={e => handleFileUpload(e.target.files)} />
       </div>
 
       <div className="sidebar-separator" />
@@ -245,7 +179,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
       {/* SECCIÓN 2: ESCENA (Renderizado global) */}
       <div className="sidebar-section">
         <h3 className="section-title">Configuración de Escena</h3>
-        <div className="tool-group">
+          <div className="tool-group">
           <button 
             className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
             title="Mostrar FPS" onClick={() => toggleSetting('fps')}>
@@ -254,7 +188,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
           <button 
             className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
             title="Antialiasing" onClick={() => toggleSetting('aa')}>
-            <span style={{fontSize: '10px', fontWeight: 'bold'}}>AA</span>
+            <span className="aa-label">AA</span>
           </button>
           <button 
             className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
@@ -268,14 +202,14 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
           </button>
         </div>
         
-        <div className="input-row" style={{position: 'relative'}}>
+        <div className="input-row">
           <label>Fondo</label>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')} style={{padding: 4}}>
-              <div style={{width: 28, height: 18, background: bgColor, border: '1px solid #000', borderRadius: 4}} />
+          <div className="preview-group">
+            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
+              <div className="color-swatch" style={{background: bgColor}} />
             </button>
             {openPicker === 'bg' && (
-              <div className="color-tooltip" style={{right: 0}}>
+              <div className="color-tooltip">
                 <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
                 <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
               </div>
@@ -306,14 +240,14 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
             <ion-icon name="cube-outline"></ion-icon>
           </button>
         </div>
-        <div className="input-row" style={{position: 'relative'}}>
+        <div className="input-row">
           <label>Normales</label>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')} style={{padding: 4}}>
-              <div style={{width: 28, height: 18, background: normalsColor, border: '1px solid #000', borderRadius: 4}} />
+          <div className="preview-group">
+            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
+              <div className="color-swatch" style={{background: normalsColor}} />
             </button>
             {openPicker === 'normals' && (
-              <div className="color-tooltip" style={{right: 0}}>
+              <div className="color-tooltip">
                 <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
                 <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
               </div>
@@ -329,14 +263,14 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
         <div className="sidebar-section selection-box">
           <h3 className="section-title">Sub-malla Seleccionada</h3>
           
-          <div className="input-row" style={{position: 'relative'}}>
+          <div className="input-row">
             <label>Color (Kd)</label>
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')} style={{padding: 4}}>
-                <div style={{width: 28, height: 18, background: kdColor, border: '1px solid #000', borderRadius: 4}} />
+            <div className="preview-group">
+              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}>
+                <div className="color-swatch" style={{background: kdColor}} />
               </button>
               {openPicker === 'kd' && (
-                <div className="color-tooltip" style={{right: 0}}>
+                <div className="color-tooltip">
                   <ColorWheel currentColor={kdColor} size={140} onColorSelect={(c) => setKdColor(c)} />
                   <RgbInputs color={kdColor} onColorChange={(c) => setKdColor(c)} />
                 </div>
@@ -353,7 +287,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
             </div>
           </div>
 
-          <div className="tool-group" style={{marginTop: '10px'}}>
+          <div className="tool-group mt-10">
             <button className="sidebar-button active" title="BBox Local">
               <ion-icon name="scan-outline"></ion-icon>
             </button>
