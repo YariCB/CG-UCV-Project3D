@@ -2,7 +2,86 @@ import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 
-interface SidebarProps { bgColor: string; setBgColor: (c: string) => void }
+interface OBJData {
+  vertices: number[][];
+  normals: number[][];
+  faces: { v: number[]; n?: number[]; material?: string }[];
+}
+
+function parseOBJ(text: string): OBJData {
+  const lines = text.split("\n");
+  const vertices: number[][] = [];
+  const normals: number[][] = [];
+  const faces: any[] = [];
+  let currentMaterial: string | undefined;
+
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    switch (parts[0]) {
+      case "v":
+        vertices.push(parts.slice(1).map(Number));
+        break;
+      case "vn":
+        normals.push(parts.slice(1).map(Number));
+        break;
+      case "f":
+        const vIdx = parts.slice(1).map(p => parseInt(p.split("/")[0]) - 1);
+        faces.push({ v: vIdx, material: currentMaterial });
+        break;
+      case "usemtl":
+        currentMaterial = parts[1];
+        break;
+    }
+  }
+  return { vertices, normals, faces };
+}
+
+interface Material { Kd: [number, number, number] }
+
+function parseMTL(text: string): Record<string, Material> {
+  const lines = text.split("\n");
+  const materials: Record<string, Material> = {};
+  let current: string | null = null;
+
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    switch (parts[0]) {
+      case "newmtl":
+        current = parts[1];
+        materials[current] = { Kd: [0.7, 0.7, 0.7] }; // default
+        break;
+      case "Kd":
+        if (current) {
+          materials[current].Kd = parts.slice(1).map(Number) as [number, number, number];
+        }
+        break;
+    }
+  }
+  return materials;
+}
+
+function assignMaterials(obj: OBJData, materials: Record<string, Material>) {
+  const meshes: { vertices: number[][]; faces: number[][]; color: [number, number, number] }[] = [];
+
+  const grouped = obj.faces.reduce((acc, face) => {
+    const mat = face.material || "default";
+    if (!acc[mat]) acc[mat] = [];
+    acc[mat].push(face);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  for (const mat in grouped) {
+    meshes.push({
+      vertices: obj.vertices,
+      faces: grouped[mat].map(f => f.v),
+      color: materials[mat]?.Kd || [0.7, 0.7, 0.7]
+    });
+  }
+  return meshes;
+}
+
+
+interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: (m: any[]) => void }
 const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -51,6 +130,32 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
     const b = bigint & 255;
     return `rgba(${r},${g},${b},1)`;
   }
+
+  // Carga del objeto 3D
+    const handleFileUpload = async (files: FileList | null) => {
+      if (!files) return;
+      const objFile = Array.from(files).find(f => f.name.endsWith(".obj"));
+      if (!objFile) return alert("Debe seleccionar un archivo OBJ");
+
+      const objText = await objFile.text();
+      const objData = parseOBJ(objText);
+
+      // Buscar MTL en el mismo directorio
+      const mtlFile = Array.from(files).find(f => f.name.endsWith(".mtl"));
+      let materials: Record<string, Material> = {};
+      if (mtlFile) {
+        const mtlText = await mtlFile.text();
+        materials = parseMTL(mtlText);
+      } else {
+        alert("No se encontró archivo MTL. Se asignará color gris por defecto.");
+        materials["default"] = { Kd: [0.7, 0.7, 0.7] };
+      }
+
+      // Asignar materiales a sub-mallas
+      const meshes = assignMaterials(objData, materials);
+      console.log(meshes);
+      setMeshes(meshes);
+    };
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -132,7 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
             <ion-icon name="save-sharp"></ion-icon>
           </button>
         </div>
-        <input type="file" ref={fileInputRef} style={{ display: 'none' }} multiple accept=".obj,.mtl" />
+        <input type="file" ref={fileInputRef} style={{ display: 'none' }} multiple accept=".obj,.mtl" onChange={e => handleFileUpload(e.target.files)} />
       </div>
 
       <div className="sidebar-separator" />
