@@ -119,6 +119,30 @@
     cursor: pointer;
 }
 
+/* Preview button used to open the color tooltip */
+.color-preview-button {
+    padding: 4px;
+}
+
+/* Tooltip containing the wheel and inputs */
+.color-tooltip {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    background: #1b1b1b;
+    border: 1px solid #444;
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    z-index: 60;
+    width: max-content;
+}
+
+.rgba-inputs-container {
+    display: flex;
+    gap: 6px;
+}
+
 /* Grupo de transformación (X, Y, Z) */
 .transform-group {
     padding: 5px 10px;

@@ -1,11 +1,17 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
+import ColorWheel from './ColorWheel';
 
 const Sidebar: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para simular la selección (esto vendría de tu lógica WebGL)
   const [hasSelection, setHasSelection] = useState(true); 
+  // Colors are stored as rgba(...) strings for consistency with ColorWheel
+  const [bgColor, setBgColor] = useState<string>('rgba(204,204,204,1)');
+  const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
+  const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
+  const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
   const [activeSettings, setActiveSettings] = useState({
     fps: true,
     aa: false,
@@ -23,6 +29,96 @@ const Sidebar: React.FC = () => {
   const openGitHub = (e: React.MouseEvent) => {
     e.preventDefault();
     window.open("https://github.com/YariCB/CG-UCV-Project3D", '_blank');
+  };
+
+  // Helpers
+  function parseRgba(colorString: string) {
+    const m = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (!m) return { r: 0, g: 0, b: 0, a: 1 };
+    return {
+      r: parseInt(m[1]),
+      g: parseInt(m[2]),
+      b: parseInt(m[3]),
+      a: m[4] !== undefined ? parseFloat(m[4]) : 1
+    };
+  }
+
+  function hexToRgba(hex: string) {
+    if (!hex) return 'rgba(0,0,0,1)';
+    const h = hex.replace('#', '');
+    const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r},${g},${b},1)`;
+  }
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    function onDocDown(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('.color-tooltip') || target.closest('.color-preview-button')) return;
+      setOpenPicker(null);
+    }
+    if (openPicker) document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [openPicker]);
+
+  // RGB Inputs component (no alpha)
+  interface RgbInputsProps { color: string; onColorChange: (c: string) => void }
+  const RgbInputs: React.FC<RgbInputsProps> = ({ color, onColorChange }) => {
+    const [inputs, setInputs] = useState<{ r: string; g: string; b: string }>({ r: '0', g: '0', b: '0' });
+
+    useEffect(() => {
+      const p = parseRgba(color);
+      setInputs(prev => ({
+        r: p.r.toString(),
+        g: p.g.toString(),
+        b: p.b.toString()
+      }));
+    }, [color]);
+
+    const handleChange = (comp: 'r' | 'g' | 'b', value: string) => {
+      setInputs(prev => ({ ...prev, [comp]: value }));
+      if (value === '') return;
+      let num = parseFloat(value);
+      if (isNaN(num)) return;
+      num = Math.min(255, Math.max(0, num));
+      const p = parseRgba(color);
+      const newR = comp === 'r' ? num : p.r;
+      const newG = comp === 'g' ? num : p.g;
+      const newB = comp === 'b' ? num : p.b;
+      onColorChange(`rgba(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)}, ${p.a})`);
+    };
+
+    const inputStyle: React.CSSProperties = {
+      width: '56px',
+      textAlign: 'center',
+      fontSize: '12px',
+      background: '#1b1b1b',
+      border: '1px solid #444',
+      color: '#fff',
+      padding: '4px',
+      borderRadius: 4
+    };
+
+    return (
+      <div style={{display: 'flex', gap: 6, marginTop: 8}}>
+        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+          <label style={{fontSize: 11}}>R</label>
+          <input type="number" min={0} max={255} value={inputs.r} onChange={e => handleChange('r', e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+          <label style={{fontSize: 11}}>G</label>
+          <input type="number" min={0} max={255} value={inputs.g} onChange={e => handleChange('g', e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+          <label style={{fontSize: 11}}>B</label>
+          <input type="number" min={0} max={255} value={inputs.b} onChange={e => handleChange('b', e.target.value)} style={inputStyle} />
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -68,9 +164,19 @@ const Sidebar: React.FC = () => {
           </button>
         </div>
         
-        <div className="input-row">
+        <div className="input-row" style={{position: 'relative'}}>
           <label>Fondo</label>
-          <input type="color" defaultValue="#cccccc" title="Color de fondo" />
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')} style={{padding: 4}}>
+              <div style={{width: 28, height: 18, background: bgColor, border: '1px solid #000', borderRadius: 4}} />
+            </button>
+            {openPicker === 'bg' && (
+              <div className="color-tooltip" style={{right: 0}}>
+                <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
+                <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -96,9 +202,19 @@ const Sidebar: React.FC = () => {
             <ion-icon name="cube-outline"></ion-icon>
           </button>
         </div>
-        <div className="input-row">
+        <div className="input-row" style={{position: 'relative'}}>
           <label>Normales</label>
-          <input type="color" defaultValue="#00ff00" />
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')} style={{padding: 4}}>
+              <div style={{width: 28, height: 18, background: normalsColor, border: '1px solid #000', borderRadius: 4}} />
+            </button>
+            {openPicker === 'normals' && (
+              <div className="color-tooltip" style={{right: 0}}>
+                <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
+                <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -109,9 +225,19 @@ const Sidebar: React.FC = () => {
         <div className="sidebar-section selection-box">
           <h3 className="section-title">Sub-malla Seleccionada</h3>
           
-          <div className="input-row">
+          <div className="input-row" style={{position: 'relative'}}>
             <label>Color (Kd)</label>
-            <input type="color" defaultValue="#A191FF" />
+            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')} style={{padding: 4}}>
+                <div style={{width: 28, height: 18, background: kdColor, border: '1px solid #000', borderRadius: 4}} />
+              </button>
+              {openPicker === 'kd' && (
+                <div className="color-tooltip" style={{right: 0}}>
+                  <ColorWheel currentColor={kdColor} size={140} onColorSelect={(c) => setKdColor(c)} />
+                  <RgbInputs color={kdColor} onColorChange={(c) => setKdColor(c)} />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="transform-group">
