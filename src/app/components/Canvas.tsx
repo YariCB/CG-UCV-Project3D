@@ -1,9 +1,10 @@
 import React from 'react';
 import '../../styles/style.css';
 
-const Canvas: React.FC = () => {
+interface CanvasProps { bgColor?: string }
+const Canvas: React.FC<CanvasProps> = ({ bgColor = 'rgba(0,0,0,1)' }) => {
   return (
-    <main className="scene">
+    <main className="scene" style={{ background: bgColor }}>
     </main>
   );
 };

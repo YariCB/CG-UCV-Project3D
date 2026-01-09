@@ -2,13 +2,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps { bgColor: string; setBgColor: (c: string) => void }
+const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para simular la selección (esto vendría de tu lógica WebGL)
   const [hasSelection, setHasSelection] = useState(true); 
-  // Colors are stored as rgba(...) strings for consistency with ColorWheel
-  const [bgColor, setBgColor] = useState<string>('rgba(204,204,204,1)');
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
