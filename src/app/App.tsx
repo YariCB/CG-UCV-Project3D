@@ -1,13 +1,14 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import Sidebar from './components/Sidebar';
+import Canvas from './components/Canvas';
 
-const App: React.FC = () => {
-	return (
-		<div className="app">
-			<p>Introducción a la Computación Gráfica. Proyecto #2</p>
-
-			<canvas id="canvas" width={800} height={600}></canvas>
+const App: React.FC = () => (
+	<div className="app">
+		<div className="content-layout">
+			<Sidebar />
+			<Canvas />
 		</div>
-	);
-};
+	</div>
+);
 
 export default App;

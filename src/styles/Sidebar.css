@@ -1,0 +1,169 @@
+/* Contenedor Principal de la Barra Lateral */
+.sidebar-container {
+    width: 210px;
+    min-width: 80px;
+    background-color: #2e2e2e;
+    color: #ffffff;
+    padding: 10px 0;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Secciones y Títulos */
+
+.section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: hsl(0, 0%, 80%);
+    margin: 3px 0 3px 0;
+    text-align: left;
+    padding: 0 5px;
+}
+
+/* Grupo de herramientas (iconos) */
+.tool-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+    margin: 5px;
+}
+
+/* Botón Genérico de la Sidebar */
+.sidebar-button {
+    background: none;
+    border: 1px solid #A191FF;
+    border-radius: 4px;
+    color: inherit;
+    padding: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.sidebar-button:hover {
+    background-color: #3f3f3f;
+    border-color: #b5a8ff;
+}
+
+.sidebar-button ion-icon {
+    font-size: 20px;
+}
+
+/* Separador Visual */
+.sidebar-separator {
+    height: 1px;
+    background-color: #4a4a4a;
+    margin: 5px;
+}
+
+/* Grupo de Operaciones de Archivo (Top) */
+.file-ops-group {
+    display: flex;
+    gap: 8px;
+    padding: 0 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.archive-btn {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    height: 32px;
+}
+
+.save-btn {
+    width: 32px;
+    height: 32px;
+}
+
+/* Footer y Link de GitHub (Bottom) */
+.sidebar-footer {
+    margin-top: auto; /* Empuja al final del contenedor flex */
+    padding: 15px 10px;
+    border-top: 1px solid #4a4a4a;
+    display: flex;
+    justify-content: center;
+}
+
+.github-link {
+    width: 20px;
+    height: 20px;
+    font-size: 24px;
+    text-decoration: none;
+}
+
+/* Filas de entrada (Etiqueta + Input) */
+.input-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 10px;
+}
+
+.input-row label {
+    font-size: 11px;
+    color: #bbb;
+}
+
+.input-row input[type="color"] {
+    border: none;
+    width: 25px;
+    height: 18px;
+    background: none;
+    cursor: pointer;
+}
+
+/* Grupo de transformación (X, Y, Z) */
+.transform-group {
+    padding: 5px 10px;
+}
+
+.label-small {
+    font-size: 10px;
+    color: #888;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.xyz-inputs {
+    display: flex;
+    gap: 4px;
+}
+
+.xyz-inputs input {
+    width: 100%;
+    background-color: #1b1b1b;
+    border: 1px solid #4a4a4a;
+    color: white;
+    font-size: 11px;
+    padding: 3px;
+    border-radius: 3px;
+    text-align: center;
+}
+
+/* Feedback de botón activo */
+.sidebar-button.active {
+    background-color: #A191FF;
+    color: #1b1b1b;
+    border-color: #ffffff;
+}
+
+/* Resaltado de sección de selección */
+.selection-box {
+    background-color: rgba(161, 145, 255, 0.05);
+    border-left: 2px solid #A191FF;
+    padding-top: 5px;
+    margin-top: 5px;
+}
+
+.delete-btn:hover {
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+    color: white;
+}
