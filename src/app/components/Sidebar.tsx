@@ -28,7 +28,12 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
 
   const openGitHub = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.open("https://github.com/YariCB/CG-UCV-Project3D", '_blank');
+    const url = "https://github.com/YariCB/CG-UCV-Project3D";
+    try {
+      nw.Shell.openExternal(url);
+    } catch (error) {
+      window.open(url, '_blank');
+    }
   };
 
   // Helpers
