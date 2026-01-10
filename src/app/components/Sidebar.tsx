@@ -1,11 +1,18 @@
 import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
+import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
 
 interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: (m: any[]) => void }
 const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados para el modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalOnConfirm, setModalOnConfirm] = useState<() => void>(() => () => {});
   
   // Estados para simular la selección (esto vendría de tu lógica WebGL)
   const [hasSelection, setHasSelection] = useState(true); 
@@ -62,7 +69,13 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
     const handleFileUpload = async (files: FileList | null) => {
       if (!files) return;
       const objFile = Array.from(files).find(f => f.name.endsWith(".obj"));
-      if (!objFile) return alert("Debe seleccionar un archivo OBJ");
+      if (!objFile) {
+        setModalTitle('Error de carga');
+        setModalMessage('Debe seleccionar un archivo OBJ.');
+        setModalOnConfirm(() => () => setModalOpen(false));
+        setModalOpen(true);
+        return;
+      }
 
       const objText = await objFile.text();
       const objData = parseOBJ(objText);
@@ -97,11 +110,17 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
           materials = parseMTL(mtlText);
         } catch (err) {
           console.warn('Error leyendo MTL:', err);
-          alert('Error leyendo archivo MTL. Se asignará color gris por defecto.');
+          setModalTitle('Error leyendo MTL');
+          setModalMessage('Error leyendo archivo MTL. Se asignará color gris por defecto.');
+          setModalOnConfirm(() => () => setModalOpen(false));
+          setModalOpen(true);
           materials['default'] = { Kd: [0.7, 0.7, 0.7] };
         }
       } else {
-        alert('No se encontró archivo MTL. Se asignará color gris por defecto.');
+        setModalTitle('MTL no encontrado');
+        setModalMessage('No se encontró archivo MTL. Se asignará color gris por defecto.');
+        setModalOnConfirm(() => () => setModalOpen(false));
+        setModalOpen(true);
         materials['default'] = { Kd: [0.7, 0.7, 0.7] };
       }
 
@@ -171,11 +190,20 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
   };
 
   return (
+    <>
     <aside className="sidebar-container">
       {/* SECCIÓN 1: ARCHIVO */}
       <div className="sidebar-section">
         <div className="file-ops-group">
-          <button className="sidebar-button archive-btn" onClick={() => fileInputRef.current?.click()}>
+          <button
+            className="sidebar-button archive-btn"
+            onClick={() => {
+              setModalTitle('Cargar archivo 3D');
+              setModalMessage('Para cargar el objeto 3D debe seleccionar tanto el archivo .obj como el archivo .mtl en el explorador.');
+              setModalOnConfirm(() => () => fileInputRef.current?.click());
+              setModalOpen(true);
+            }}
+          >
             Archivo
           </button>
           <button className="sidebar-button save-btn" title="Guardar Escena">
@@ -316,6 +344,19 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
         </a>
       </div>
     </aside>
+
+    {modalOpen && (
+      <ConfirmationModal
+        title={modalTitle}
+        message={modalMessage}
+        onConfirm={() => {
+          modalOnConfirm();
+          setModalOpen(false);
+        }}
+        onCancel={() => setModalOpen(false)}
+      />
+    )}
+    </>
   );
 };
 
