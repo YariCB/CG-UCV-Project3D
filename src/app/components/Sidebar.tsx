@@ -327,6 +327,22 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
           </div>
 
         </div>
+
+        <div className="input-row">
+          <label>Normales</label>
+          <div className="preview-group">
+            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
+              <div className="color-swatch" style={{background: normalsColor}} />
+            </button>
+            {openPicker === 'normals' && (
+              <div className="color-tooltip">
+                <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
+                <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
 
       <div className="sidebar-separator" />
