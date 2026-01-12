@@ -28,6 +28,15 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
     bbox: false,
     wireframe: false
   });
+  const buttonLabels: Record<string, string> = {
+    fps: 'Mostrar FPS',
+    aa: 'Anti Aliasing',
+    zBuffer: 'Z-Buffer',
+    culling: 'Back-face Culling',
+    normals: 'Ver Normales',
+    bbox: 'Bounding Box Global',
+  };
+  const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
   const toggleSetting = (key: string) => {
     setActiveSettings(prev => ({ ...prev, [key]: !prev[key] as any }));
@@ -218,27 +227,50 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
       {/* SECCIÓN 2: ESCENA (Renderizado global) */}
       <div className="sidebar-section">
         <h3 className="section-title">Configuración de Escena</h3>
-          <div className="tool-group">
-          <button 
-            className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
-            title="Mostrar FPS" onClick={() => toggleSetting('fps')}>
-            <ion-icon name="speedometer-outline"></ion-icon>
-          </button>
-          <button 
-            className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
-            title="Antialiasing" onClick={() => toggleSetting('aa')}>
-            <span className="aa-label">AA</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
-            title="Z-Buffer (Depth Test)" onClick={() => toggleSetting('zBuffer')}>
-            <ion-icon name="layers-outline"></ion-icon>
-          </button>
-          <button 
-            className={`sidebar-button ${activeSettings.culling ? 'active' : ''}`} 
-            title="Back-face Culling" onClick={() => toggleSetting('culling')}>
-            <ion-icon name="albums-outline"></ion-icon>
-          </button>
+        <div className="tool-group">
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
+              title="Mostrar FPS"
+              onClick={() => toggleSetting('fps')}
+            >
+              <ion-icon name="speedometer-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.fps}</span>
+          </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
+              title="Antialiasing"
+              onClick={() => toggleSetting('aa')}
+            >
+              <span className="aa-label">AA</span>
+            </button>
+            <span className="tool-button-label">{buttonLabels.aa}</span>
+          </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
+              title="Z-Buffer (Depth Test)"
+              onClick={() => toggleSetting('zBuffer')}
+            >
+              <ion-icon name="layers-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.zBuffer}</span>
+          </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.culling ? 'active' : ''}`} 
+              title="Back-face Culling"
+              onClick={() => toggleSetting('culling')}
+            >
+              <ion-icon name="albums-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.culling}</span>
+          </div>
         </div>
         
         <div className="input-row">
@@ -259,39 +291,41 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
 
       <div className="sidebar-separator" />
 
-      {/* SECCIÓN 3: VISUALIZACIÓN (Del objeto cargado) */}
+      {/* SECCIÓN 3: VISUALIZACIÓN */}
       <div className="sidebar-section">
         <h3 className="section-title">Visualización</h3>
-        <div className="tool-group">
-          <button 
-            className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
-            title="Ver Relleno / Wireframe" onClick={() => toggleSetting('wireframe')}>
-            <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
-          </button>
-          <button 
-            className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
-            title="Ver Normales por Vértice" onClick={() => toggleSetting('normals')}>
-            <ion-icon name="git-commit-outline"></ion-icon>
-          </button>
-          <button 
-            className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
-            title="Bounding Box Global" onClick={() => toggleSetting('bbox')}>
-            <ion-icon name="cube-outline"></ion-icon>
-          </button>
-        </div>
-        <div className="input-row">
-          <label>Normales</label>
-          <div className="preview-group">
-            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
-              <div className="color-swatch" style={{background: normalsColor}} />
+        <div className="tool-group"> {/* Solo un tool-group aquí */}
+          
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
+              onClick={() => toggleSetting('wireframe')}
+            >
+              <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
             </button>
-            {openPicker === 'normals' && (
-              <div className="color-tooltip">
-                <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
-                <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
-              </div>
-            )}
+            <span className="tool-button-label">{wireframeLabel}</span>
           </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
+              onClick={() => toggleSetting('normals')}
+            >
+              <ion-icon name="git-commit-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.normals}</span>
+          </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
+              onClick={() => toggleSetting('bbox')}
+            >
+              <ion-icon name="cube-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.bbox}</span>
+          </div>
+
         </div>
       </div>
 

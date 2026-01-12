@@ -24,25 +24,46 @@
 
 /* Grupo de herramientas (iconos) */
 .tool-group {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 7px;
     margin: 5px;
+}
+
+/* Contenedor para botón + etiqueta */
+.tool-button-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 40px;
+}
+
+/* Texto debajo de cada botón */
+.tool-button-label {
+    font-size: 9px;
+    color: #ccc;
+    text-align: center;
+    pointer-events: none;
+    margin-top: 4px;
+    line-height: 1.1;
+    word-wrap: break-word;
+    width: 100%;
 }
 
 /* Botón Genérico de la Sidebar */
 .sidebar-button {
+    width: 32px;
+    height: 32px;
     background: none;
     border: 1px solid #A191FF;
-    border-radius: 4px;
+    border-radius: 8px;
     color: inherit;
-    padding: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .sidebar-button:hover {
@@ -84,7 +105,7 @@
 
 /* Footer y Link de GitHub (Bottom) */
 .sidebar-footer {
-    margin-top: auto; /* Empuja al final del contenedor flex */
+    margin-top: auto;
     padding: 15px 10px;
     border-top: 1px solid #4a4a4a;
     display: flex;
@@ -92,8 +113,8 @@
 }
 
 .github-link {
-    width: 20px;
-    height: 20px;
+    width: 32px;
+    height: 32px;
     font-size: 24px;
     text-decoration: none;
 }
