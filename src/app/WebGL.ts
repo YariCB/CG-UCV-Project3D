@@ -87,19 +87,38 @@ export function setupShaders() {
 
 export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color: [number, number, number] }) {
   if (!gl || !program) return;
-
-  // Flatten vertices y normales
+  // Flatten vertices y normales, triangulating polygonal faces (fan triangulation)
   const flatVerts: number[] = [];
   const flatNormals: number[] = [];
   mesh.faces.forEach(face => {
-    face.v.forEach((vidx, i) => {
-      flatVerts.push(...mesh.vertices[vidx]);
-      if (face.n && face.n[i] !== undefined) {
-        flatNormals.push(...mesh.normals[face.n[i]!]);
-      } else {
-        flatNormals.push(0, 0, 1); // fallback
+    const verts = face.v;
+    const norms = face.n || [];
+    if (verts.length < 3) return;
+    if (verts.length === 3) {
+      for (let i = 0; i < 3; i++) {
+        const vidx = verts[i];
+        flatVerts.push(...mesh.vertices[vidx]);
+        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]] ) {
+          flatNormals.push(...mesh.normals[norms[i]]);
+        } else {
+          flatNormals.push(0, 0, 1);
+        }
       }
-    });
+    } else {
+      // fan triangulation: (v0, vi, vi+1)
+      for (let i = 1; i < verts.length - 1; i++) {
+        const tri = [0, i, i + 1];
+        for (const t of tri) {
+          const vidx = verts[t];
+          flatVerts.push(...mesh.vertices[vidx]);
+          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]]) {
+            flatNormals.push(...mesh.normals[norms[t]]);
+          } else {
+            flatNormals.push(0, 0, 1);
+          }
+        }
+      }
+    }
   });
 
   // Buffer de posiciones
@@ -142,8 +161,24 @@ export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color:
 
   const uMVP = gl.getUniformLocation(program, "uMVP");
   gl.uniformMatrix4fv(uMVP, false, mvp);
-
   gl.drawArrays(gl.TRIANGLES, 0, flatVerts.length / 3);
+}
+
+// Redraw helper: clears buffers and draws an array of meshes
+export function redraw(meshes: { vertices: number[][]; normals?: number[][]; faces: any[]; color: [number, number, number] }[]) {
+  if (!gl) return;
+  if (!program) return;
+  // Ensure viewport matches canvas size
+  const canvas = gl.canvas as HTMLCanvasElement;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  // Clear color and depth
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // Draw each mesh
+  meshes.forEach(m => {
+    drawMesh(m as any);
+  });
 }
 
 // Activar o desactivar z-buffer

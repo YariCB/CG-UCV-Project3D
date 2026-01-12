@@ -5,8 +5,8 @@ import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
 import { setDepthTest, setCulling } from '../WebGL';
 
-interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: React.Dispatch<React.SetStateAction<any[]>> }
-const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => {
+interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: React.Dispatch<React.SetStateAction<any[]>>; activeSettings: any; setActiveSettings: React.Dispatch<React.SetStateAction<any>> }
+const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activeSettings, setActiveSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados para el modal
@@ -20,15 +20,6 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
-  const [activeSettings, setActiveSettings] = useState({
-    fps: true,
-    aa: false,
-    zBuffer: true,
-    culling: true,
-    normals: false,
-    bbox: false,
-    wireframe: false
-  });
   const buttonLabels: Record<string, string> = {
     fps: 'Mostrar FPS',
     aa: 'Anti Aliasing',
@@ -40,17 +31,15 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
   const toggleSetting = (key: string) => {
-    setActiveSettings(prev => {
-      const newState = { ...prev, [key]: !prev[key] as any };
+    setActiveSettings((prev: any) => {
+      const newState = { ...prev, [key]: !prev[key] };
 
       if (key === 'zBuffer') {
         setDepthTest(newState.zBuffer);
-        // Force a re-render/draw of the current meshes so the change takes effect immediately
         setMeshes(prev => [...prev]);
       }
       if (key === 'culling') {
         setCulling(newState.culling);
-        // Force a re-render/draw of the current meshes so the change takes effect immediately
         setMeshes(prev => [...prev]);
       }
 
@@ -158,6 +147,10 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
 
       console.log(meshes);
       console.log(normalizedMeshes);
+      // Ensure depth test and culling are enabled by default on import
+      setActiveSettings((prev: any) => ({ ...prev, zBuffer: true, culling: true }));
+      setDepthTest(true);
+      setCulling(true);
       setMeshes(normalizedMeshes);
     };
 

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { initWebGL, setupShaders, drawMesh } from '../WebGL';
+import { initWebGL, setupShaders, drawMesh, setDepthTest, setCulling, redraw } from '../WebGL';
 import '../../styles/style.css';
 
-interface CanvasProps { bgColor?: string; meshes?: any[] }
+interface CanvasProps { bgColor?: string; meshes?: any[]; depthEnabled?: boolean; cullingEnabled?: boolean }
 
-const Canvas: React.FC<CanvasProps> = ({ bgColor = 'rgba(0,0,0,1)', meshes = [] }) => {
+const Canvas: React.FC<CanvasProps> = ({ bgColor = 'rgba(0,0,0,1)', meshes = [], depthEnabled = true, cullingEnabled = true }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -23,8 +23,12 @@ const Canvas: React.FC<CanvasProps> = ({ bgColor = 'rgba(0,0,0,1)', meshes = [] 
     }
     setupShaders();
 
+    // Apply desired depth/culling state (ensures defaults on import)
+    setDepthTest(!!depthEnabled);
+    setCulling(!!cullingEnabled);
+
     // clear and draw
-    meshes.forEach(m => drawMesh(m));
+    redraw(meshes);
 
     const handleResize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -32,11 +36,13 @@ const Canvas: React.FC<CanvasProps> = ({ bgColor = 'rgba(0,0,0,1)', meshes = [] 
       canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
       initWebGL(canvas);
       setupShaders();
-      meshes.forEach(m => drawMesh(m));
+      setDepthTest(!!depthEnabled);
+      setCulling(!!cullingEnabled);
+      redraw(meshes);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [meshes]);
+  }, [meshes, depthEnabled, cullingEnabled]);
 
   return (
     <main className="scene" style={{ background: bgColor }}>
