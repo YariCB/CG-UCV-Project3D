@@ -3,8 +3,9 @@ import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
+import { setDepthTest, setCulling } from '../WebGL';
 
-interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: (m: any[]) => void }
+interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: React.Dispatch<React.SetStateAction<any[]>> }
 const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,7 +40,22 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes }) => 
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
   const toggleSetting = (key: string) => {
-    setActiveSettings(prev => ({ ...prev, [key]: !prev[key] as any }));
+    setActiveSettings(prev => {
+      const newState = { ...prev, [key]: !prev[key] as any };
+
+      if (key === 'zBuffer') {
+        setDepthTest(newState.zBuffer);
+        // Force a re-render/draw of the current meshes so the change takes effect immediately
+        setMeshes(prev => [...prev]);
+      }
+      if (key === 'culling') {
+        setCulling(newState.culling);
+        // Force a re-render/draw of the current meshes so the change takes effect immediately
+        setMeshes(prev => [...prev]);
+      }
+
+      return newState;
+    });
   };
 
   const openGitHub = (e: React.MouseEvent) => {

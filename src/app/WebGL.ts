@@ -9,7 +9,6 @@ export function initWebGL(canvas: HTMLCanvasElement): boolean {
     return false;
   }
   gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.enable(gl.DEPTH_TEST);
   return true;
 }
 
@@ -145,4 +144,25 @@ export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color:
   gl.uniformMatrix4fv(uMVP, false, mvp);
 
   gl.drawArrays(gl.TRIANGLES, 0, flatVerts.length / 3);
+}
+
+// Activar o desactivar z-buffer
+export function setDepthTest(enabled: boolean) {
+  if (!gl) return;
+  if (enabled) {
+    gl.enable(gl.DEPTH_TEST);
+  } else {
+    gl.disable(gl.DEPTH_TEST);
+  }
+}
+
+// Activar o desactivar back-face culling
+export function setCulling(enabled: boolean) {
+  if (!gl) return;
+  if (enabled) {
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK); // elimina caras traseras
+  } else {
+    gl.disable(gl.CULL_FACE);
+  }
 }

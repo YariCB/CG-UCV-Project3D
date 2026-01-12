@@ -10,6 +10,7 @@ Instrucciones para desarrollo y empaquetado (Vite + NW.js)
 - `react`
 - `react-dom`
 - `react-icons`
+- `gl-matrix`
 
 **Dependencias de desarrollo**
 - `vite`
@@ -24,7 +25,7 @@ Desde la raíz del proyecto:
 npm install
 ```
 
-**Scripts útiles** (usando PowerShell desde la raíz del proyecto)
+**Ejecución** (usando PowerShell desde la raíz del proyecto)
 
 - `npm run dev` — Levanta el servidor de desarrollo Vite (HMR). Abre `http://localhost:5173`.
 - `npm run build` — Genera el bundle de producción en `./dist`.
