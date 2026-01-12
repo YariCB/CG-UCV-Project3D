@@ -5,7 +5,16 @@ export interface OBJData {
   mtllib?: string | null;
 }
 
-export interface Material { Kd: [number, number, number] }
+export interface Material {
+  Kd: [number, number, number];   // Diffuse color (se usa en render)
+  Ka?: [number, number, number];  // Ambient color (solo lectura)
+  Ks?: [number, number, number];  // Specular color (solo lectura)
+  Ke?: [number, number, number];  // Emissive color (solo lectura)
+  Ns?: number;                    // Shininess
+  d?: number;                     // Transparency (alpha)
+  illum?: number;                 // Illumination model
+  Ni?: number;                    // Optical density
+}
 
 export function parseOBJ(text: string): OBJData {
   const lines = text.split("\n");
@@ -27,7 +36,11 @@ export function parseOBJ(text: string): OBJData {
         break;
       case "f":
         const vIdx = parts.slice(1).map(p => parseInt(p.split("/")[0]) - 1);
-        faces.push({ v: vIdx, material: currentMaterial });
+        const nIdx = parts.slice(1).map(p => {
+          const comps = p.split("/");
+          return comps[2] ? parseInt(comps[2]) - 1 : undefined;
+        });
+        faces.push({ v: vIdx, n: nIdx, material: currentMaterial });
         break;
       case "usemtl":
         currentMaterial = parts[1];
@@ -53,9 +66,44 @@ export function parseMTL(text: string): Record<string, Material> {
         current = parts[1];
         materials[current] = { Kd: [0.7, 0.7, 0.7] };
         break;
+      case "Ka":
+        if (current) {
+          materials[current].Ka = parts.slice(1).map(Number) as [number, number, number];
+        }
+        break;
       case "Kd":
         if (current) {
           materials[current].Kd = parts.slice(1).map(Number) as [number, number, number];
+        }
+        break;
+      case "Ks":
+        if (current) {
+          materials[current].Ks = parts.slice(1).map(Number) as [number, number, number];
+        }
+        break;
+      case "Ke":
+        if (current) {
+          materials[current].Ke = parts.slice(1).map(Number) as [number, number, number];
+        }
+        break;
+      case "Ns":
+        if (current) {
+          materials[current].Ns = parseFloat(parts[1]);
+        }
+        break;
+      case "d":
+        if (current) {
+          materials[current].d = parseFloat(parts[1]);
+        }
+        break;
+      case "illum":
+        if (current) {
+          materials[current].illum = parseInt(parts[1]);
+        }
+        break;
+      case "Ni":
+        if (current) {
+          materials[current].Ni = parseFloat(parts[1]);
         }
         break;
     }
@@ -64,19 +112,20 @@ export function parseMTL(text: string): Record<string, Material> {
 }
 
 export function assignMaterials(obj: OBJData, materials: Record<string, Material>) {
-  const meshes: { vertices: number[][]; faces: number[][]; color: [number, number, number] }[] = [];
+  const meshes: { vertices: number[][]; normals: number[][]; faces: { v: number[]; n?: number[] }[]; color: [number, number, number] }[] = [];
 
   const grouped = obj.faces.reduce((acc, face) => {
     const mat = face.material || "default";
     if (!acc[mat]) acc[mat] = [];
     acc[mat].push(face);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, { v: number[]; n?: number[]; material?: string }[]>);
 
   for (const mat in grouped) {
     meshes.push({
       vertices: obj.vertices,
-      faces: grouped[mat].map(f => f.v),
+      normals: obj.normals,
+      faces: grouped[mat],
       color: materials[mat]?.Kd || [0.7, 0.7, 0.7]
     });
   }

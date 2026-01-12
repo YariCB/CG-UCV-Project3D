@@ -36,20 +36,27 @@ function createProgram(vsSource: string, fsSource: string): WebGLProgram {
   return program;
 }
 
-// Vertex shader con matriz MVP
+// Vertex shader
 const vsSource = `
 attribute vec3 aPosition;
+attribute vec3 aNormal;
 uniform mat4 uMVP;
+varying vec3 vNormal;
 void main() {
   gl_Position = uMVP * vec4(aPosition, 1.0);
+  vNormal = aNormal;
 }
 `;
 
+// Fragment shader
 const fsSource = `
 precision mediump float;
 uniform vec3 uColor;
+uniform vec3 uLightDir;
+varying vec3 vNormal;
 void main() {
-  gl_FragColor = vec4(uColor, 1.0);
+  float diff = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
+  gl_FragColor = vec4(uColor * diff, 1.0);
 }
 `;
 
@@ -82,18 +89,43 @@ export function setupShaders() {
 export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color: [number, number, number] }) {
   if (!gl || !program) return;
 
-  // Flatten vertices
-  const flatVerts = mesh.faces.flat().map(idx => mesh.vertices[idx]).flat();
+  // Flatten vertices y normales
+  const flatVerts: number[] = [];
+  const flatNormals: number[] = [];
+  mesh.faces.forEach(face => {
+    face.v.forEach((vidx, i) => {
+      flatVerts.push(...mesh.vertices[vidx]);
+      if (face.n && face.n[i] !== undefined) {
+        flatNormals.push(...mesh.normals[face.n[i]!]);
+      } else {
+        flatNormals.push(0, 0, 1); // fallback
+      }
+    });
+  });
+
+  // Buffer de posiciones
   const vertexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatVerts), gl.STATIC_DRAW);
-
   const aPosition = gl.getAttribLocation(program, "aPosition");
   gl.enableVertexAttribArray(aPosition);
   gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
 
+  // Buffer de normales
+  const normalBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatNormals), gl.STATIC_DRAW);
+  const aNormal = gl.getAttribLocation(program, "aNormal");
+  gl.enableVertexAttribArray(aNormal);
+  gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+  // Color difuso
   const uColor = gl.getUniformLocation(program, "uColor");
   gl.uniform3fv(uColor, mesh.color);
+
+  // Luz direccional
+  const uLightDir = gl.getUniformLocation(program, "uLightDir");
+  gl.uniform3fv(uLightDir, [0.0, 0.0, 1.0]); // luz desde +Z
 
   // Matriz MVP
   const model = mat4.create();
