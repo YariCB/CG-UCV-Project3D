@@ -153,6 +153,10 @@ function applyMVP(program: WebGLProgram, mesh: Mesh) {
     mat4.translate(model, model, [0, 0, -3]);
     mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
     mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+    if ((mesh as any).translate) {
+      const t = (mesh as any).translate as [number, number, number];
+      mat4.translate(model, model, t);
+    }
   }
   const projection = mat4.create();
   mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
@@ -184,7 +188,7 @@ export function drawMesh(mesh: Mesh) {
   gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 }
 
-export function redraw(meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0]) {
+export function redraw(meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0], selectedMeshId?: number, bboxColor?: [number, number, number]) {
   if (!gl || !renderProgram) return;
   const canvas = gl.canvas as HTMLCanvasElement;
   gl.viewport(0, 0, canvas.width, canvas.height);
@@ -192,6 +196,13 @@ export function redraw(meshes: Mesh[], bgColor: [number, number, number, number]
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   meshes.forEach(m => drawMesh(m));
+
+  if (selectedMeshId && bboxColor) {
+    const mesh = meshes.find(m => m.id === selectedMeshId);
+    if (mesh) {
+      drawBoundingBox(mesh, bboxColor);
+    }
+  }
 }
 
 export function setDepthTest(enabled: boolean) {
@@ -261,4 +272,67 @@ export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: 
   redraw(meshes, bgColor);
 
   return result;
+}
+
+export function drawBoundingBox(mesh: any, color: [number, number, number]) {
+  if (!gl || !renderProgram) return;
+  const bbox = computeBoundingBox(mesh);
+  const [minX, minY, minZ] = bbox.min;
+  const [maxX, maxY, maxZ] = bbox.max;
+
+  const corners = [
+    [minX, minY, minZ], [maxX, minY, minZ],
+    [maxX, maxY, minZ], [minX, maxY, minZ],
+    [minX, minY, maxZ], [maxX, minY, maxZ],
+    [maxX, maxY, maxZ], [minX, maxY, maxZ],
+  ];
+
+  // Aristas del cubo
+  const edges = [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7],
+  ];
+
+  const flatVerts: number[] = [];
+  edges.forEach(([a,b]) => {
+    flatVerts.push(...corners[a], ...corners[b]);
+  });
+
+  gl.useProgram(renderProgram);
+
+  const aPosition = gl.getAttribLocation(renderProgram, "aPosition");
+  const aNormal = gl.getAttribLocation(renderProgram, "aNormal");
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatVerts), gl.STATIC_DRAW);
+  if (aPosition >= 0) {
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  // Provide a simple normal buffer (all +Z) to satisfy shader if needed
+  const normals: number[] = [];
+  for (let i = 0; i < flatVerts.length / 3; i++) normals.push(0, 0, 1);
+  const normalBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+  if (aNormal >= 0) {
+    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const uColor = gl.getUniformLocation(renderProgram, "uColor");
+  if (uColor) gl.uniform3fv(uColor, new Float32Array(color));
+
+  const uLightDir = gl.getUniformLocation(renderProgram, "uLightDir");
+  if (uLightDir) gl.uniform3fv(uLightDir, new Float32Array([0,0,1]));
+
+  applyMVP(renderProgram, mesh);
+
+  // Evitar z-fighting: dibujar en modo líneas y con polygonOffset
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(-1, -1);
+  gl.drawArrays(gl.LINES, 0, flatVerts.length/3);
+  gl.disable(gl.POLYGON_OFFSET_FILL);
 }

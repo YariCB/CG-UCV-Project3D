@@ -9,12 +9,14 @@ type ActiveSettings = {
 	culling: boolean;
 	normals: boolean;
 	bbox: boolean;
+	bboxlocal: boolean;
 	wireframe: boolean;
 }
 
 const App: React.FC = () => {
 	// background default to black
 	const [bgColor, setBgColor] = useState<string>('rgba(0,0,0,1)');
+	const [bboxLocalColor, setBboxLocalColor] = useState<string>('rgba(255,255,0,1)');
 	const [meshes, setMeshes] = useState<any[]>([]);
 	const [selectedMeshId, setSelectedMeshId] = useState<number | null>(null);
 
@@ -25,6 +27,7 @@ const App: React.FC = () => {
 		culling: true,
 		normals: false,
 		bbox: false,
+		bboxlocal: false,
 		wireframe: false,
 	});
 
@@ -39,6 +42,9 @@ const App: React.FC = () => {
 					activeSettings={activeSettings}
 					setActiveSettings={setActiveSettings}
 					selectedMeshId={selectedMeshId}
+					setSelectedMeshId={setSelectedMeshId}
+					bboxLocalColor={bboxLocalColor}
+  					setBboxLocalColor={setBboxLocalColor}
 				/>
 				<Canvas
 					bgColor={bgColor}
@@ -47,6 +53,8 @@ const App: React.FC = () => {
 					cullingEnabled={activeSettings.culling}
 					setSelectedMeshId={setSelectedMeshId}
 					setMeshes={setMeshes}
+					bboxColor={bboxLocalColor}
+					showLocalBBox={activeSettings.bboxlocal}
 				/>
 			</div>
 		</div>

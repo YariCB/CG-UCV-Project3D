@@ -2,7 +2,17 @@ import React, { useEffect, useRef } from 'react';
 import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt } from '../WebGL';
 import '../../styles/style.css';
 
-interface CanvasProps { bgColor?: string; meshes?: any[]; depthEnabled?: boolean; cullingEnabled?: boolean; setSelectedMeshId?: (id: number | null) => void; setMeshes?: React.Dispatch<React.SetStateAction<any[]>> }
+interface CanvasProps {
+  bgColor?: string;
+  meshes?: any[];
+  depthEnabled?: boolean;
+  cullingEnabled?: boolean;
+  setSelectedMeshId?: (id: number | null) => void;
+  setMeshes?: React.Dispatch<React.SetStateAction<any[]>>;
+  selectedMeshId?: number;
+  bboxColor?: string;
+  showLocalBBox?: boolean;
+}
 
 const Canvas: React.FC<CanvasProps> = ({ 
   bgColor = 'rgba(0,0,0,1)', 
@@ -10,7 +20,10 @@ const Canvas: React.FC<CanvasProps> = ({
   depthEnabled = true, 
   cullingEnabled = true,
   setSelectedMeshId, 
-  setMeshes
+  setMeshes,
+  selectedMeshId,
+  bboxColor
+  ,showLocalBBox
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -39,7 +52,7 @@ const Canvas: React.FC<CanvasProps> = ({
     setDepthTest(!!depthEnabled);
     setCulling(!!cullingEnabled);
 
-    redraw(meshes, parseRgba(bgColor));
+    redraw(meshes, parseRgba(bgColor), showLocalBBox ? selectedMeshId : undefined, showLocalBBox && bboxColor ? parseRgba(bboxColor) : undefined);
 
     const handleResize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -49,11 +62,11 @@ const Canvas: React.FC<CanvasProps> = ({
       setupShaders();
       setDepthTest(!!depthEnabled);
       setCulling(!!cullingEnabled);
-      redraw(meshes, parseRgba(bgColor));
+      redraw(meshes, parseRgba(bgColor), showLocalBBox ? selectedMeshId : undefined, showLocalBBox && bboxColor ? parseRgba(bboxColor) : undefined);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [meshes, depthEnabled, cullingEnabled, bgColor]);
+  }, [meshes, depthEnabled, cullingEnabled, bgColor, selectedMeshId, bboxColor]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -13,6 +13,9 @@ interface SidebarProps {
   activeSettings: any; 
   setActiveSettings: React.Dispatch<React.SetStateAction<any>>
   selectedMeshId: number | null;
+  setSelectedMeshId?: (id: number | null) => void;
+  bboxLocalColor: string;
+  setBboxLocalColor: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -22,7 +25,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   setMeshes,
   activeSettings,
   setActiveSettings,
-  selectedMeshId
+  selectedMeshId,
+  setSelectedMeshId,
+  bboxLocalColor,
+  setBboxLocalColor
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,9 +42,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [hasSelection, setHasSelection] = useState(false); 
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
-  const [bboxLocalColor, setBboxLocalColor] = useState<string>('rgba(255,255,0,1)');
+  const [translateX, setTranslateX] = useState<string>('0');
+  const [translateY, setTranslateY] = useState<string>('0');
+  const [translateZ, setTranslateZ] = useState<string>('0');
 
-  const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
+  const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd' | 'bboxLocal'>(null);
   const buttonLabels: Record<string, string> = {
     fps: 'Mostrar FPS',
     aa: 'Anti Aliasing',
@@ -62,6 +70,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       const g = Math.round((mesh.color[1] || 0) * 255);
       const b = Math.round((mesh.color[2] || 0) * 255);
       setKdColor(`rgba(${r},${g},${b},1)`);
+    }
+    // enable local bbox when selecting
+    setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
+    // sync translate inputs
+    const mesh2 = meshes.find(m => m.id === selectedMeshId);
+    if (mesh2 && mesh2.translate) {
+      setTranslateX(String(mesh2.translate[0] || 0));
+      setTranslateY(String(mesh2.translate[1] || 0));
+      setTranslateZ(String(mesh2.translate[2] || 0));
+    } else {
+      setTranslateX('0'); setTranslateY('0'); setTranslateZ('0');
     }
   }, [selectedMeshId, meshes]);
 
@@ -183,7 +202,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       // Normalizar
       const { center, scale } = normalizeOBJ(objData);
-      const normalizedMeshes = meshes.map(m => ({ ...m, center, scale }));
+      const normalizedMeshes = meshes.map(m => ({ ...m, center, scale, translate: [0,0,0] }));
 
       console.log(meshes);
       console.log(normalizedMeshes);
@@ -192,6 +211,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       setDepthTest(true);
       setCulling(true);
       setMeshes(normalizedMeshes);
+      // ensure bbox local visible when importing selection defaults
+      setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
     };
 
   // Close picker when clicking outside
@@ -450,9 +471,21 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="transform-group">
             <label className="label-small">Traslación (X, Y, Z)</label>
             <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" />
-              <input type="number" placeholder="Y" step="0.1" />
-              <input type="number" placeholder="Z" step="0.1" />
+              <input type="number" placeholder="X" step="0.1" value={translateX} onChange={(e) => {
+                const v = e.target.value; setTranslateX(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
+              }} />
+              <input type="number" placeholder="Y" step="0.1" value={translateY} onChange={(e) => {
+                const v = e.target.value; setTranslateY(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
+              }} />
+              <input type="number" placeholder="Z" step="0.1" value={translateZ} onChange={(e) => {
+                const v = e.target.value; setTranslateZ(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
+              }} />
             </div>
           </div>
 
@@ -493,7 +526,12 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <div className="tool-button-wrapper delete-wrapper">
-              <button className="sidebar-button delete-btn" title="Eliminar Sub-malla">
+              <button className="sidebar-button delete-btn" title="Eliminar Sub-malla" onClick={() => {
+                if (selectedMeshId !== null) {
+                  setMeshes(prev => prev.filter(m => m.id !== selectedMeshId));
+                  if (setSelectedMeshId) setSelectedMeshId(null);
+                }
+              }}>
                 <ion-icon name="trash-outline"></ion-icon>
               </button>
               <span className="tool-button-label">Eliminar</span>

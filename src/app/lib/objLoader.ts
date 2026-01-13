@@ -114,7 +114,7 @@ export function parseMTL(text: string): Record<string, Material> {
 export function assignMaterials(obj: OBJData, materials: Record<string, Material>) {
   const meshes: { id: number; vertices: number[][]; normals: number[][]; faces: { v: number[]; n?: number[] }[]; color: [number, number, number] }[] = [];
   let counter = 1;
-  
+
   const grouped = obj.faces.reduce((acc, face) => {
     const mat = face.material || "default";
     if (!acc[mat]) acc[mat] = [];
@@ -158,4 +158,19 @@ export function normalizeOBJ(obj: OBJData) {
   const scale = 2.0 / maxSize; // Escala para que quepa en [-1,1]
 
   return { center, scale };
+}
+
+// Cálculo de bounding box
+export function computeBoundingBox(mesh: { vertices: number[][]; faces: { v: number[] }[] }) {
+  const xs: number[] = [], ys: number[] = [], zs: number[] = [];
+  mesh.faces.forEach(face => {
+    face.v.forEach(idx => {
+      const v = mesh.vertices[idx];
+      xs.push(v[0]); ys.push(v[1]); zs.push(v[2]);
+    });
+  });
+  return {
+    min: [Math.min(...xs), Math.min(...ys), Math.min(...zs)],
+    max: [Math.max(...xs), Math.max(...ys), Math.max(...zs)]
+  };
 }
