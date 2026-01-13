@@ -53,6 +53,7 @@ const App: React.FC = () => {
 					cullingEnabled={activeSettings.culling}
 					setSelectedMeshId={setSelectedMeshId}
 					setMeshes={setMeshes}
+					selectedMeshId={selectedMeshId}
 					bboxColor={bboxLocalColor}
 					showLocalBBox={activeSettings.bboxlocal}
 				/>

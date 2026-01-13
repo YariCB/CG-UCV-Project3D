@@ -22,8 +22,8 @@ const Canvas: React.FC<CanvasProps> = ({
   setSelectedMeshId, 
   setMeshes,
   selectedMeshId,
-  bboxColor
-  ,showLocalBBox
+  bboxColor,
+  showLocalBBox
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -52,7 +52,18 @@ const Canvas: React.FC<CanvasProps> = ({
     setDepthTest(!!depthEnabled);
     setCulling(!!cullingEnabled);
 
-    redraw(meshes, parseRgba(bgColor), showLocalBBox ? selectedMeshId : undefined, showLocalBBox && bboxColor ? parseRgba(bboxColor) : undefined);
+    const bboxRgb = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
+    const localMeshId = showLocalBBox && selectedMeshId !== null && selectedMeshId !== undefined ? selectedMeshId : undefined;
+
+    console.log("Redibujando con:", {
+      meshesCount: meshes.length,
+      selectedMeshId,
+      showLocalBBox,
+      localMeshId,
+      bboxRgb
+    });
+
+    redraw(meshes, parseRgba(bgColor), localMeshId, bboxRgb);
 
     const handleResize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -62,11 +73,13 @@ const Canvas: React.FC<CanvasProps> = ({
       setupShaders();
       setDepthTest(!!depthEnabled);
       setCulling(!!cullingEnabled);
-      redraw(meshes, parseRgba(bgColor), showLocalBBox ? selectedMeshId : undefined, showLocalBBox && bboxColor ? parseRgba(bboxColor) : undefined);
+      const bboxRgb2 = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
+      const localMeshId2 = showLocalBBox && selectedMeshId !== null ? selectedMeshId : undefined;
+      redraw(meshes, parseRgba(bgColor), localMeshId2, bboxRgb2);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [meshes, depthEnabled, cullingEnabled, bgColor, selectedMeshId, bboxColor]);
+  }, [meshes, depthEnabled, cullingEnabled, bgColor, selectedMeshId, bboxColor, showLocalBBox]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
