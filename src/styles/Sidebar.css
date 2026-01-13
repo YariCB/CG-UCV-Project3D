@@ -1,235 +1,358 @@
-/* Contenedor Principal de la Barra Lateral */
+/* ===========================
+   Layout general Sidebar
+   =========================== */
+
 .sidebar-container {
-    width: 260px;
-    min-width: 160px;
-    background-color: #2e2e2e;
-    color: #ffffff;
-    padding: 10px 0;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+  width: 260px;
+  min-width: 160px;
+  height: 100%;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+
+  background-color: #2e2e2e;
+  color: #ffffff;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
 }
 
-/* Secciones y Títulos */
+/* ===========================
+   Secciones y títulos
+   =========================== */
 
 .section-title {
-    font-size: 10px;
-    text-transform: uppercase;
-    color: hsl(0, 0%, 80%);
-    margin: 3px 0 3px 0;
-    text-align: left;
-    padding: 0 5px;
+  padding: 0 5px;
+  margin: 3px 0;
+
+  font-size: 10px;
+  text-transform: uppercase;
+  text-align: left;
+  color: hsl(0, 0%, 80%);
 }
 
-/* Grupo de herramientas (iconos) */
+/* ===========================
+   Grupos de iconos / botones
+   =========================== */
+
 .tool-group {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-    gap: 7px;
-    margin: 5px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 7px;
+  margin: 5px;
 }
 
-/* Contenedor para botón + etiqueta */
 .tool-button-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 40px;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.selection-id{
-    font-size: 12px;
-    color: #ccc;
+.selection-id {
+  font-size: 12px;
+  color: #ccc;
 }
 
-/* Texto debajo de cada botón */
 .tool-button-label {
-    font-size: 9px;
-    color: #ccc;
-    text-align: center;
-    pointer-events: none;
-    margin-top: 4px;
-    line-height: 1.1;
-    word-wrap: break-word;
-    width: 100%;
+  width: 100%;
+  margin-top: 4px;
+
+  font-size: 9px;
+  line-height: 1.1;
+  text-align: center;
+  color: #ccc;
+
+  pointer-events: none;
+  word-wrap: break-word;
 }
 
-/* Botón Genérico de la Sidebar */
+/* Botón genérico de la sidebar */
+
 .sidebar-button {
-    width: 32px;
-    height: 32px;
-    background: none;
-    border: 1px solid #A191FF;
-    border-radius: 8px;
-    color: inherit;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  background: none;
+  border: 1px solid #a191ff;
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .sidebar-button:hover {
-    background-color: #3f3f3f;
-    border-color: #b5a8ff;
+  background-color: #3f3f3f;
+  border-color: #b5a8ff;
 }
 
 .sidebar-button ion-icon {
-    font-size: 20px;
+  font-size: 20px;
 }
 
-/* Separador Visual */
+.sidebar-button.active {
+  background-color: #a191ff;
+  border-color: #ffffff;
+  color: #1b1b1b;
+}
+
+/* Separador visual */
+
 .sidebar-separator {
-    height: 1px;
-    background-color: #4a4a4a;
-    margin: 5px;
+  height: 1px;
+  margin: 5px;
+  background-color: #4a4a4a;
 }
 
-/* Grupo de Operaciones de Archivo (Top) */
+/* ===========================
+   Operaciones de archivo (top)
+   =========================== */
+
 .file-ops-group {
-    display: flex;
-    gap: 8px;
-    padding: 0 10px;
-    margin-bottom: 10px;
-    align-items: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 0 10px;
+  margin-bottom: 10px;
 }
 
 .archive-btn {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 500;
-    height: 32px;
+  flex: 1;
+  height: 32px;
+
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .save-btn {
-    width: 32px;
-    height: 32px;
+  width: 32px;
+  height: 32px;
 }
 
-/* Footer y Link de GitHub (Bottom) */
+/* ===========================
+   Footer / GitHub
+   =========================== */
+
 .sidebar-footer {
-    margin-top: auto;
-    padding: 15px 10px;
-    border-top: 1px solid #4a4a4a;
-    display: flex;
-    justify-content: center;
+  margin-top: auto;
+  padding: 15px 10px;
+
+  display: flex;
+  justify-content: center;
+
+  border-top: 1px solid #4a4a4a;
 }
 
 .github-link {
-    width: 32px;
-    height: 32px;
-    font-size: 24px;
-    text-decoration: none;
+  width: 32px;
+  height: 32px;
+  font-size: 24px;
+  text-decoration: none;
 }
 
-/* Filas de entrada (Etiqueta + Input) */
+/* ===========================
+   Filas de entrada genéricas
+   =========================== */
+
 .input-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 10px;
-    position: relative;
+  position: relative;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 4px 10px;
 }
 
 .input-row label {
-    font-size: 11px;
-    color: #bbb;
+  font-size: 11px;
+  color: #bbb;
 }
 
 .input-row input[type="color"] {
-    border: none;
-    width: 25px;
-    height: 18px;
-    background: none;
-    cursor: pointer;
+  width: 25px;
+  height: 18px;
+
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
-/* Preview button used to open the color tooltip */
+/* ===========================
+   Color pickers y tooltips
+   =========================== */
+
+/* Botón que muestra el color actual */
 .color-preview-button {
-    padding: 4px;
+  padding: 4px;
+  /* normalmente también lleva .sidebar-button */
 }
 
-/* Tooltip containing the wheel and inputs */
+/* Contenedor relativo para TODOS los color pickers */
+.color-picker-relative-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Tooltip base (rueda cromática + inputs) */
 .color-tooltip {
-    position: absolute;
-    top: 32px;
-    right: 0;
-    background: #1b1b1b;
-    border: 1px solid #444;
-    padding: 8px;
-    border-radius: 8px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
-    z-index: 60;
-    width: max-content;
+  position: absolute;
+  z-index: 100;
+
+  background: #1b1b1b;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 8px;
+  width: max-content;
+
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Contenido interno del tooltip */
+
+.preview-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 18px;
+
+  border: 1px solid #000;
+  border-radius: 4px;
 }
 
 .rgba-inputs-container {
-    display: flex;
-    gap: 6px;
+  display: flex;
+  gap: 6px;
 }
 
-.hidden-file-input { display: none; }
+.rgb-inputs {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
 
-.aa-label { font-size: 10px; font-weight: 700; }
+.rgba-input-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
-.preview-group { display: flex; align-items: center; gap: 8px; }
+.rgba-input-item label {
+  font-size: 11px;
+}
 
-.color-swatch { width: 28px; height: 18px; border: 1px solid #000; border-radius: 4px; }
+.color-component-input {
+  width: 56px;
+  padding: 4px;
 
-.rgb-inputs { display: flex; gap: 6px; margin-top: 8px; }
-.rgba-input-item { display: flex; flex-direction: column; align-items: center; }
-.rgba-input-item label { font-size: 11px; }
-.color-component-input { width: 56px; text-align: center; font-size: 12px; background: #1b1b1b; border: 1px solid #444; color: #fff; padding: 4px; border-radius: 4px; }
+  font-size: 12px;
+  text-align: center;
 
-.mt-10 { margin-top: 10px; }
+  background: #1b1b1b;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+}
 
-/* Grupo de transformación (X, Y, Z) */
+.mt-10 {
+  margin-top: 10px;
+}
+
+/* ===========================
+   Transformaciones (X, Y, Z)
+   =========================== */
+
 .transform-group {
-    padding: 5px 10px;
+  padding: 5px 10px;
 }
 
 .label-small {
-    font-size: 10px;
-    color: #888;
-    display: block;
-    margin-bottom: 4px;
+  display: block;
+  margin-bottom: 4px;
+
+  font-size: 10px;
+  color: #888;
 }
 
 .xyz-inputs {
-    display: flex;
-    gap: 4px;
+  display: flex;
+  gap: 4px;
 }
 
 .xyz-inputs input {
-    width: 100%;
-    background-color: #1b1b1b;
-    border: 1px solid #4a4a4a;
-    color: white;
-    font-size: 11px;
-    padding: 3px;
-    border-radius: 3px;
-    text-align: center;
+  width: 100%;
+  padding: 3px;
+
+  font-size: 11px;
+  text-align: center;
+
+  background-color: #1b1b1b;
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  color: #ffffff;
 }
 
-/* Feedback de botón activo */
-.sidebar-button.active {
-    background-color: #A191FF;
-    color: #1b1b1b;
-    border-color: #ffffff;
-}
+/* ===========================
+   Selección y acciones malla
+   =========================== */
 
-/* Resaltado de sección de selección */
 .selection-box {
-    background-color: rgba(161, 145, 255, 0.05);
-    border-left: 2px solid #A191FF;
-    padding-top: 5px;
-    margin-top: 5px;
+  margin-top: 5px;
+  padding-top: 5px;
+
+  background-color: rgba(161, 145, 255, 0.05);
+  border-left: 2px solid #a191ff;
+}
+
+.mesh-actions-row {
+  position: relative;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  padding: 0 10px;
+}
+
+/* Grupo BBox local (botón + color) */
+.bbox-local-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bbox-local-group .color-preview-button {
+  margin-top: 0;
+}
+
+/* Wrapper para botón eliminar */
+.delete-wrapper {
+  margin-left: auto;
 }
 
 .delete-btn:hover {
-    background-color: #ff4d4d;
-    border-color: #ff4d4d;
-    color: white;
+  background-color: #ff4d4d;
+  border-color: #ff4d4d;
+  color: #ffffff;
+}
+
+/* ===========================
+   Utilidades
+   =========================== */
+
+.hidden-file-input {
+  display: none;
+}
+
+.aa-label {
+  font-size: 10px;
+  font-weight: 700;
 }

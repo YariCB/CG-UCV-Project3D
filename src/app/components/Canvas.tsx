@@ -72,6 +72,8 @@ const Canvas: React.FC<CanvasProps> = ({
         console.log("Sub-malla seleccionada:", id);
         setSelectedMeshId && setSelectedMeshId(id);
         // Do NOT change mesh color here; Sidebar will read current color and allow edits
+      } else {
+        setSelectedMeshId(null);
       }
     };
 

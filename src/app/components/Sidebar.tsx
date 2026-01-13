@@ -36,6 +36,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [hasSelection, setHasSelection] = useState(false); 
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
+  const [bboxLocalColor, setBboxLocalColor] = useState<string>('rgba(255,255,0,1)');
+
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
   const buttonLabels: Record<string, string> = {
     fps: 'Mostrar FPS',
@@ -322,16 +324,18 @@ const Sidebar: React.FC<SidebarProps> = ({
         
         <div className="input-row">
           <label>Fondo</label>
-          <div className="preview-group">
-            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
-              <div className="color-swatch" style={{background: bgColor}} />
-            </button>
-            {openPicker === 'bg' && (
-              <div className="color-tooltip">
-                <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
-                <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
-              </div>
-            )}
+          <div className="color-picker-relative-container">
+            <div className="preview-group">
+              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
+                <div className="color-swatch" style={{background: bgColor}} />
+              </button>
+              {openPicker === 'bg' && (
+                <div className="color-tooltip">
+                  <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
+                  <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -377,16 +381,18 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="input-row">
           <label>Normales</label>
-          <div className="preview-group">
-            <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
-              <div className="color-swatch" style={{background: normalsColor}} />
-            </button>
-            {openPicker === 'normals' && (
-              <div className="color-tooltip">
-                <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
-                <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
-              </div>
-            )}
+          <div className="color-picker-relative-container">
+            <div className="preview-group">
+              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
+                <div className="color-swatch" style={{background: normalsColor}} />
+              </button>
+              {openPicker === 'normals' && (
+                <div className="color-tooltip">
+                  <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
+                  <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -402,41 +408,43 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="input-row">
             <p className="selection-id">ID: {selectedMeshId}</p>
             <label>Color (Kd)</label>
-            <div className="preview-group">
-              <button
-                className="color-preview-button sidebar-button"
-                onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}
-              >
-                <div className="color-swatch" style={{ background: kdColor }} />
-              </button>
-              {openPicker === 'kd' && (
-                <div className="color-tooltip">
-                  <ColorWheel
-                    currentColor={kdColor}
-                    size={140}
-                    onColorSelect={(c) => {
-                      setKdColor(c);
-                      // actualizar color en meshes
-                      setMeshes(prevMeshes =>
-                        prevMeshes.map(m =>
-                          m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
-                        )
-                      );
-                    }}
-                  />
-                  <RgbInputs
-                    color={kdColor}
-                    onColorChange={(c) => {
-                      setKdColor(c);
-                      setMeshes(prevMeshes =>
-                        prevMeshes.map(m =>
-                          m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
-                        )
-                      );
-                    }}
-                  />
-                </div>
-              )}
+            <div className="color-picker-relative-container">
+              <div className="preview-group">
+                <button
+                  className="color-preview-button sidebar-button"
+                  onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}
+                >
+                  <div className="color-swatch" style={{ background: kdColor }} />
+                </button>
+                {openPicker === 'kd' && (
+                  <div className="color-tooltip">
+                    <ColorWheel
+                      currentColor={kdColor}
+                      size={140}
+                      onColorSelect={(c) => {
+                        setKdColor(c);
+                        // actualizar color en meshes
+                        setMeshes(prevMeshes =>
+                          prevMeshes.map(m =>
+                            m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                          )
+                        );
+                      }}
+                    />
+                    <RgbInputs
+                      color={kdColor}
+                      onColorChange={(c) => {
+                        setKdColor(c);
+                        setMeshes(prevMeshes =>
+                          prevMeshes.map(m =>
+                            m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="transform-group">
@@ -448,14 +456,47 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          <div className="tool-group mt-10">
-            <button className="sidebar-button active" title="BBox Local">
-              <ion-icon name="scan-outline"></ion-icon>
-            </button>
-            <button className="sidebar-button delete-btn" title="Eliminar Sub-malla">
-              <ion-icon name="trash-outline"></ion-icon>
-            </button>
+          <div className="mesh-actions-row mt-10">
+            <div className="bbox-local-group">
+              <div className="tool-button-wrapper">
+                <button 
+                  className={`sidebar-button ${activeSettings.bboxlocal ? 'active' : ''}`} 
+                  title="BBox Local"
+                  onClick={() => toggleSetting('bboxlocal')}
+                >
+                  <ion-icon name="scan-outline"></ion-icon>
+                </button>
+                <span className="tool-button-label">BBox Local</span>
+              </div>
+
+              {/* Selector de color para BBox Local */}
+              <div className="color-picker-relative-container">
+                <div className="preview-group">
+                  <button 
+                    className="color-preview-button sidebar-button" 
+                    onClick={() => setOpenPicker(openPicker === 'bboxLocal' ? null : 'bboxLocal')}
+                  >
+                    <div className="color-swatch" style={{background: bboxLocalColor}} />
+                  </button>
+                  
+                  {openPicker === 'bboxLocal' && (
+                    <div className="color-tooltip bbox-tooltip-adjust">
+                      <ColorWheel currentColor={bboxLocalColor} size={140} onColorSelect={(c) => setBboxLocalColor(c)} />
+                      <RgbInputs color={bboxLocalColor} onColorChange={(c) => setBboxLocalColor(c)} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="tool-button-wrapper delete-wrapper">
+              <button className="sidebar-button delete-btn" title="Eliminar Sub-malla">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">Eliminar</span>
+            </div>
           </div>
+
         </div>
       )}
 
