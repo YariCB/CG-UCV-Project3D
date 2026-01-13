@@ -439,6 +439,23 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
+          <div className="transform-group">
+            <label className="label-small">Traslación (X, Y, Z)</label>
+            <div className="xyz-inputs">
+              <input type="number" placeholder="X" step="0.1" />
+              <input type="number" placeholder="Y" step="0.1" />
+              <input type="number" placeholder="Z" step="0.1" />
+            </div>
+          </div>
+
+          <div className="tool-group mt-10">
+            <button className="sidebar-button active" title="BBox Local">
+              <ion-icon name="scan-outline"></ion-icon>
+            </button>
+            <button className="sidebar-button delete-btn" title="Eliminar Sub-malla">
+              <ion-icon name="trash-outline"></ion-icon>
+            </button>
+          </div>
         </div>
       )}
 
