@@ -11,6 +11,7 @@ interface CanvasProps {
   selectedMeshId?: number | null;
   bboxColor?: string;
   showLocalBBox?: boolean;
+  toggleBBoxLocal?: () => void;
 }
 
 const Canvas: React.FC<CanvasProps> = ({ 
@@ -21,12 +22,11 @@ const Canvas: React.FC<CanvasProps> = ({
   setSelectedMeshId, 
   selectedMeshId,
   bboxColor,
-  showLocalBBox
+  showLocalBBox,
+  toggleBBoxLocal
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const redrawTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Utilidad para convertir rgba(...) a array [r,g,b,a] - memoizada
   const parseRgba = useCallback((c: string): [number, number, number, number] => {
     const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
     if (!m) return [0, 0, 0, 1];
@@ -38,26 +38,41 @@ const Canvas: React.FC<CanvasProps> = ({
     ];
   }, []);
 
-  // Función para redibujar con debouncing
   const handleRedraw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !meshes.length) return;
 
-    // Cancelar redibujado pendiente
-    if (redrawTimeoutRef.current) {
-      clearTimeout(redrawTimeoutRef.current);
-    }
-
-    // Programar nuevo redibujado con debouncing
-    redrawTimeoutRef.current = setTimeout(() => {
-      const bboxRgb = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
-      const localMeshId = showLocalBBox && selectedMeshId !== null && selectedMeshId !== undefined ? selectedMeshId : undefined;
-      
-      redraw(meshes, parseRgba(bgColor), localMeshId, bboxRgb);
-    }, 0); // 0ms para el próximo tick
+    const bboxRgb = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
+    const localMeshId = showLocalBBox && selectedMeshId !== null ? selectedMeshId : undefined;
+    
+    redraw(meshes, parseRgba(bgColor), localMeshId, bboxRgb);
   }, [meshes, bgColor, bboxColor, selectedMeshId, showLocalBBox, parseRgba]);
 
-  // Efecto para inicialización (solo una vez o cuando cambian configs básicas)
+  const handleClick = useCallback((e: MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !setSelectedMeshId || !meshes.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const dpr = window.devicePixelRatio || 1;
+    const px = Math.floor(x * dpr);
+    const py = Math.floor(y * dpr);
+    
+    const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
+    console.log("Click → ID:", pickedId, "Current:", selectedMeshId);
+    
+    if (pickedId !== null) {
+      if (pickedId === selectedMeshId) {
+        console.log("Toggle BBox OFF");
+        toggleBBoxLocal?.();
+      } else {
+        console.log("Seleccionar nueva malla:", pickedId);
+        setSelectedMeshId(pickedId);
+      }
+    }
+  }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -72,25 +87,18 @@ const Canvas: React.FC<CanvasProps> = ({
       return;
     }
     setupShaders();
-
     setDepthTest(!!depthEnabled);
     setCulling(!!cullingEnabled);
-
-    // Redibujar después de inicializar
+    
     handleRedraw();
-  }, [depthEnabled, cullingEnabled, handleRedraw]);
+  }, []);
 
-  // Efecto para manejar cambios que requieren redibujado
+  // Resize
   useEffect(() => {
-    handleRedraw();
-  }, [meshes, bgColor, selectedMeshId, bboxColor, showLocalBBox, handleRedraw]);
-
-  // Efecto para manejar resize
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
     const handleResize = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
       canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
@@ -99,45 +107,24 @@ const Canvas: React.FC<CanvasProps> = ({
       setupShaders();
       setDepthTest(!!depthEnabled);
       setCulling(!!cullingEnabled);
-      
       handleRedraw();
     };
 
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      // Limpiar timeout al desmontar
-      if (redrawTimeoutRef.current) {
-        clearTimeout(redrawTimeoutRef.current);
-      }
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, [depthEnabled, cullingEnabled, handleRedraw]);
 
-  // Efecto para manejar clics (pick)
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !setSelectedMeshId) return;
+    if (!canvas) return;
 
-    const handleClick = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const dpr = window.devicePixelRatio || 1;
-      const px = Math.floor(x * dpr);
-      const py = Math.floor(y * dpr);
+    canvas.addEventListener('click', handleClick as any);
+    return () => canvas.removeEventListener('click', handleClick as any);
+  }, [handleClick]);
 
-      const id = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
-      if (id) {
-        console.log("Sub-malla seleccionada:", id);
-        setSelectedMeshId(id);
-      } else {
-        setSelectedMeshId(null);
-      }
-    };
-
-    canvas.addEventListener('click', handleClick);
-    return () => canvas.removeEventListener('click', handleClick);
-  }, [meshes, bgColor, setSelectedMeshId, parseRgba]);
+  useEffect(() => {
+    handleRedraw();
+  }, [handleRedraw]);
 
   return (
     <main className="scene" style={{ background: bgColor }}>

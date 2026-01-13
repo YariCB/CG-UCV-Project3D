@@ -58,22 +58,30 @@ const Sidebar: React.FC<SidebarProps> = ({
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
   // Sincronizar selectedMeshId -> mostrar color actual
+  const prevSelectedMeshIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (selectedMeshId === null) {
       setHasSelection(false);
+      prevSelectedMeshIdRef.current = null;
       return;
     }
-    setHasSelection(true);
-    const mesh = meshes.find(m => m.id === selectedMeshId);
-    if (mesh && mesh.color) {
-      const r = Math.round((mesh.color[0] || 0) * 255);
-      const g = Math.round((mesh.color[1] || 0) * 255);
-      const b = Math.round((mesh.color[2] || 0) * 255);
-      setKdColor(`rgba(${r},${g},${b},1)`);
+    
+    // Solo si el ID cambió realmente
+    if (selectedMeshId !== prevSelectedMeshIdRef.current) {
+      prevSelectedMeshIdRef.current = selectedMeshId;
+      setHasSelection(true);
+      const mesh = meshes.find(m => m.id === selectedMeshId);
+      if (mesh && mesh.color) {
+        const r = Math.round((mesh.color[0] || 0) * 255);
+        const g = Math.round((mesh.color[1] || 0) * 255);
+        const b = Math.round((mesh.color[2] || 0) * 255);
+        setKdColor(`rgba(${r},${g},${b},1)`);
+      }
+      // ← Solo activar bboxlocal si no está ya activo (evita toggle forzado)
+      setActiveSettings((prev: any) => ({ ...prev, bboxlocal: true }));
     }
-    // enable local bbox when selecting
-    setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
-    // sync translate inputs
+    
+    // sync translate inputs (mover aquí para ejecutarse siempre)
     const mesh2 = meshes.find(m => m.id === selectedMeshId);
     if (mesh2 && mesh2.translate) {
       setTranslateX(String(mesh2.translate[0] || 0));

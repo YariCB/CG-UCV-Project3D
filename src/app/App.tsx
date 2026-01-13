@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 
@@ -31,6 +31,16 @@ const App: React.FC = () => {
 		wireframe: false,
 	});
 
+	// En el nivel superior (App.tsx)
+	const toggleBBoxLocal = useCallback(() => {
+	setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }));
+	}, []);
+
+	// Exponer globalmente
+	useEffect(() => {
+	(window as any).toggleBBoxLocal = toggleBBoxLocal;
+	}, [toggleBBoxLocal]);
+
 	return (
 		<div className="app">
 			<div className="content-layout">
@@ -53,8 +63,9 @@ const App: React.FC = () => {
 					cullingEnabled={activeSettings.culling}
 					setSelectedMeshId={setSelectedMeshId}
 					selectedMeshId={selectedMeshId}
-					bboxColor={bboxLocalColor}
+					bboxColor={activeSettings.bboxlocal && selectedMeshId !== null ? bboxLocalColor : undefined}
 					showLocalBBox={activeSettings.bboxlocal}
+					toggleBBoxLocal={() => setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }))}
 				/>
 			</div>
 		</div>
