@@ -62,6 +62,7 @@ const App: React.FC = () => {
 					depthEnabled={activeSettings.zBuffer}
 					cullingEnabled={activeSettings.culling}
 					setSelectedMeshId={setSelectedMeshId}
+					setMeshes={setMeshes}
 					selectedMeshId={selectedMeshId}
 					bboxColor={activeSettings.bboxlocal && selectedMeshId !== null ? bboxLocalColor : undefined}
 					showLocalBBox={activeSettings.bboxlocal}
