@@ -5,8 +5,25 @@ import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
 import { setDepthTest, setCulling } from '../WebGL';
 
-interface SidebarProps { bgColor: string; setBgColor: (c: string) => void; setMeshes: React.Dispatch<React.SetStateAction<any[]>>; activeSettings: any; setActiveSettings: React.Dispatch<React.SetStateAction<any>> }
-const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activeSettings, setActiveSettings }) => {
+interface SidebarProps { 
+  bgColor: string; 
+  setBgColor: (c: string) => void; 
+  meshes: any[];
+  setMeshes: React.Dispatch<React.SetStateAction<any[]>>; 
+  activeSettings: any; 
+  setActiveSettings: React.Dispatch<React.SetStateAction<any>>
+  selectedMeshId: number | null;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({
+  bgColor,
+  setBgColor,
+  meshes,
+  setMeshes,
+  activeSettings,
+  setActiveSettings,
+  selectedMeshId
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados para el modal
@@ -15,8 +32,8 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activ
   const [modalMessage, setModalMessage] = useState('');
   const [modalOnConfirm, setModalOnConfirm] = useState<() => void>(() => () => {});
   
-  // Estados para simular la selección (esto vendría de tu lógica WebGL)
-  const [hasSelection, setHasSelection] = useState(true); 
+  // Estados para la selección (se sincroniza con prop `selectedMeshId`)
+  const [hasSelection, setHasSelection] = useState(false); 
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd'>(null);
@@ -29,6 +46,22 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activ
     bbox: 'Bounding Box Global',
   };
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
+
+  // Sincronizar selectedMeshId -> mostrar color actual
+  useEffect(() => {
+    if (selectedMeshId === null) {
+      setHasSelection(false);
+      return;
+    }
+    setHasSelection(true);
+    const mesh = meshes.find(m => m.id === selectedMeshId);
+    if (mesh && mesh.color) {
+      const r = Math.round((mesh.color[0] || 0) * 255);
+      const g = Math.round((mesh.color[1] || 0) * 255);
+      const b = Math.round((mesh.color[2] || 0) * 255);
+      setKdColor(`rgba(${r},${g},${b},1)`);
+    }
+  }, [selectedMeshId, meshes]);
 
   const toggleSetting = (key: string) => {
     setActiveSettings((prev: any) => {
@@ -67,6 +100,11 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activ
       b: parseInt(m[3]),
       a: m[4] !== undefined ? parseFloat(m[4]) : 1
     };
+  }
+
+  function rgbaStringToNormalizedArray(colorString: string): [number, number, number] {
+    const p = parseRgba(colorString);
+    return [p.r / 255, p.g / 255, p.b / 255];
   }
 
   function hexToRgba(hex: string) {
@@ -357,41 +395,49 @@ const Sidebar: React.FC<SidebarProps> = ({ bgColor, setBgColor, setMeshes, activ
       <div className="sidebar-separator" />
 
       {/* SECCIÓN 4: SUB-MALLA SELECCIONADA (Solo si hay selección vía Picking) */}
-      {hasSelection && (
+      {selectedMeshId !== null && (
         <div className="sidebar-section selection-box">
           <h3 className="section-title">Sub-malla Seleccionada</h3>
-          
+
           <div className="input-row">
+            <p className="selection-id">ID: {selectedMeshId}</p>
             <label>Color (Kd)</label>
             <div className="preview-group">
-              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}>
-                <div className="color-swatch" style={{background: kdColor}} />
+              <button
+                className="color-preview-button sidebar-button"
+                onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}
+              >
+                <div className="color-swatch" style={{ background: kdColor }} />
               </button>
               {openPicker === 'kd' && (
                 <div className="color-tooltip">
-                  <ColorWheel currentColor={kdColor} size={140} onColorSelect={(c) => setKdColor(c)} />
-                  <RgbInputs color={kdColor} onColorChange={(c) => setKdColor(c)} />
+                  <ColorWheel
+                    currentColor={kdColor}
+                    size={140}
+                    onColorSelect={(c) => {
+                      setKdColor(c);
+                      // actualizar color en meshes
+                      setMeshes(prevMeshes =>
+                        prevMeshes.map(m =>
+                          m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                        )
+                      );
+                    }}
+                  />
+                  <RgbInputs
+                    color={kdColor}
+                    onColorChange={(c) => {
+                      setKdColor(c);
+                      setMeshes(prevMeshes =>
+                        prevMeshes.map(m =>
+                          m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                        )
+                      );
+                    }}
+                  />
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="transform-group">
-            <label className="label-small">Traslación</label>
-            <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" />
-              <input type="number" placeholder="Y" step="0.1" />
-              <input type="number" placeholder="Z" step="0.1" />
-            </div>
-          </div>
-
-          <div className="tool-group mt-10">
-            <button className="sidebar-button active" title="BBox Local">
-              <ion-icon name="scan-outline"></ion-icon>
-            </button>
-            <button className="sidebar-button delete-btn" title="Eliminar Sub-malla">
-              <ion-icon name="trash-outline"></ion-icon>
-            </button>
           </div>
         </div>
       )}

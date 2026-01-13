@@ -38,6 +38,11 @@
     width: 40px;
 }
 
+.selection-id{
+    font-size: 12px;
+    color: #ccc;
+}
+
 /* Texto debajo de cada botón */
 .tool-button-label {
     font-size: 9px;

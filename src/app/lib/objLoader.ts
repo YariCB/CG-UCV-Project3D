@@ -112,8 +112,9 @@ export function parseMTL(text: string): Record<string, Material> {
 }
 
 export function assignMaterials(obj: OBJData, materials: Record<string, Material>) {
-  const meshes: { vertices: number[][]; normals: number[][]; faces: { v: number[]; n?: number[] }[]; color: [number, number, number] }[] = [];
-
+  const meshes: { id: number; vertices: number[][]; normals: number[][]; faces: { v: number[]; n?: number[] }[]; color: [number, number, number] }[] = [];
+  let counter = 1;
+  
   const grouped = obj.faces.reduce((acc, face) => {
     const mat = face.material || "default";
     if (!acc[mat]) acc[mat] = [];
@@ -123,6 +124,7 @@ export function assignMaterials(obj: OBJData, materials: Record<string, Material
 
   for (const mat in grouped) {
     meshes.push({
+      id: counter++,
       vertices: obj.vertices,
       normals: obj.normals,
       faces: grouped[mat],

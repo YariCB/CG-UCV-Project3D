@@ -2,6 +2,10 @@ import { mat4 } from 'gl-matrix';
 
 let gl: WebGLRenderingContext | null = null;
 
+// Programas
+let renderProgram: WebGLProgram | null = null;
+let pickingProgram: WebGLProgram | null = null;
+
 export function initWebGL(canvas: HTMLCanvasElement): boolean {
   gl = canvas.getContext('webgl');
   if (!gl) {
@@ -35,7 +39,7 @@ function createProgram(vsSource: string, fsSource: string): WebGLProgram {
   return program;
 }
 
-// Vertex shader
+// Vertex shader (compartido)
 const vsSource = `
 attribute vec3 aPosition;
 attribute vec3 aNormal;
@@ -47,8 +51,8 @@ void main() {
 }
 `;
 
-// Fragment shader
-const fsSource = `
+// Fragment shader de render (con iluminación)
+const fsRender = `
 precision mediump float;
 uniform vec3 uColor;
 uniform vec3 uLightDir;
@@ -59,60 +63,59 @@ void main() {
 }
 `;
 
-let program: WebGLProgram | null = null;
-
-
-// // GLSL mínimo: posición y color uniforme
-// const vsSource = `
-// attribute vec3 aPosition;
-// void main() {
-//   gl_Position = vec4(aPosition, 1.0);
-// }
-// `;
-
-// const fsSource = `
-// precision mediump float;
-// uniform vec3 uColor;
-// void main() {
-//   gl_FragColor = vec4(uColor, 1.0);
-// }
-// `;
-
-// let program: WebGLProgram | null = null;
+// Fragment shader de picking (color plano, sin iluminación)
+const fsPicking = `
+precision mediump float;
+uniform vec3 uColor;
+void main() {
+  gl_FragColor = vec4(uColor, 1.0);
+}
+`;
 
 export function setupShaders() {
-  program = createProgram(vsSource, fsSource);
-  gl!.useProgram(program);
+  renderProgram = createProgram(vsSource, fsRender);
+  pickingProgram = createProgram(vsSource, fsPicking);
+  gl!.useProgram(renderProgram);
 }
 
-export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color: [number, number, number] }) {
-  if (!gl || !program) return;
-  // Flatten vertices y normales, triangulating polygonal faces (fan triangulation)
+type Mesh = {
+  id?: number;
+  vertices: number[][];
+  normals?: number[][];
+  faces: { v: number[]; n?: number[] }[];
+  color: [number, number, number];
+  center?: [number, number, number];
+  scale?: number;
+};
+
+function buildBuffers(mesh: Mesh, program: WebGLProgram) {
+  // Triangulación tipo fan y aplanado
   const flatVerts: number[] = [];
   const flatNormals: number[] = [];
+
   mesh.faces.forEach(face => {
     const verts = face.v;
     const norms = face.n || [];
     if (verts.length < 3) return;
+
     if (verts.length === 3) {
       for (let i = 0; i < 3; i++) {
         const vidx = verts[i];
         flatVerts.push(...mesh.vertices[vidx]);
-        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]] ) {
-          flatNormals.push(...mesh.normals[norms[i]]);
+        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!] ) {
+          flatNormals.push(...mesh.normals[norms[i]!]!);
         } else {
           flatNormals.push(0, 0, 1);
         }
       }
     } else {
-      // fan triangulation: (v0, vi, vi+1)
       for (let i = 1; i < verts.length - 1; i++) {
         const tri = [0, i, i + 1];
         for (const t of tri) {
           const vidx = verts[t];
           flatVerts.push(...mesh.vertices[vidx]);
-          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]]) {
-            flatNormals.push(...mesh.normals[norms[t]]);
+          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!] ) {
+            flatNormals.push(...mesh.normals[norms[t]!]!);
           } else {
             flatNormals.push(0, 0, 1);
           }
@@ -122,82 +125,140 @@ export function drawMesh(mesh: { vertices: number[][]; faces: number[][]; color:
   });
 
   // Buffer de posiciones
-  const vertexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatVerts), gl.STATIC_DRAW);
-  const aPosition = gl.getAttribLocation(program, "aPosition");
-  gl.enableVertexAttribArray(aPosition);
-  gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  const aPosition = gl!.getAttribLocation(program, "aPosition");
+  const vertexBuffer = gl!.createBuffer();
+  gl!.bindBuffer(gl!.ARRAY_BUFFER, vertexBuffer);
+  gl!.bufferData(gl!.ARRAY_BUFFER, new Float32Array(flatVerts), gl!.STATIC_DRAW);
+  if (aPosition >= 0) {
+    gl!.enableVertexAttribArray(aPosition);
+    gl!.vertexAttribPointer(aPosition, 3, gl!.FLOAT, false, 0, 0);
+  }
 
   // Buffer de normales
-  const normalBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatNormals), gl.STATIC_DRAW);
-  const aNormal = gl.getAttribLocation(program, "aNormal");
-  gl.enableVertexAttribArray(aNormal);
-  gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+  const aNormal = gl!.getAttribLocation(program, "aNormal");
+  const normalBuffer = gl!.createBuffer();
+  gl!.bindBuffer(gl!.ARRAY_BUFFER, normalBuffer);
+  gl!.bufferData(gl!.ARRAY_BUFFER, new Float32Array(flatNormals), gl!.STATIC_DRAW);
+  if (aNormal >= 0) {
+    gl!.enableVertexAttribArray(aNormal);
+    gl!.vertexAttribPointer(aNormal, 3, gl!.FLOAT, false, 0, 0);
+  }
 
-  // Color difuso
-  const uColor = gl.getUniformLocation(program, "uColor");
-  gl.uniform3fv(uColor, mesh.color);
+  return { vertexCount: flatVerts.length / 3 };
+}
 
-  // Luz direccional
-  const uLightDir = gl.getUniformLocation(program, "uLightDir");
-  gl.uniform3fv(uLightDir, [0.0, 0.0, 1.0]); // luz desde +Z
-
-  // Matriz MVP
+function applyMVP(program: WebGLProgram, mesh: Mesh) {
   const model = mat4.create();
   if (mesh.center && mesh.scale) {
-    mat4.translate(model, model, [0, 0, -3]); // mover atrás
+    mat4.translate(model, model, [0, 0, -3]);
     mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
     mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
   }
-
   const projection = mat4.create();
-  mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
-
+  mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
   const mvp = mat4.create();
   mat4.multiply(mvp, projection, model);
 
-  const uMVP = gl.getUniformLocation(program, "uMVP");
-  gl.uniformMatrix4fv(uMVP, false, mvp);
-  gl.drawArrays(gl.TRIANGLES, 0, flatVerts.length / 3);
+  const uMVP = gl!.getUniformLocation(program, "uMVP");
+  gl!.uniformMatrix4fv(uMVP, false, mvp);
 }
 
-// Redraw helper: clears buffers and draws an array of meshes
-export function redraw(meshes: { vertices: number[][]; normals?: number[][]; faces: any[]; color: [number, number, number] }[]) {
-  if (!gl) return;
-  if (!program) return;
-  // Ensure viewport matches canvas size
+export function drawMesh(mesh: Mesh) {
+  if (!gl || !renderProgram) return;
+
+  gl.useProgram(renderProgram);
+  const { vertexCount } = buildBuffers(mesh, renderProgram);
+
+  // Color y luz
+  const uColor = gl.getUniformLocation(renderProgram, "uColor");
+  if (uColor) {
+    const colorArr = new Float32Array(mesh.color as [number, number, number]);
+    gl.uniform3fv(uColor, colorArr);
+  }
+  const uLightDir = gl.getUniformLocation(renderProgram, "uLightDir");
+  if (uLightDir) {
+    gl.uniform3fv(uLightDir, new Float32Array([0.0, 0.0, 1.0]));
+  }
+
+  applyMVP(renderProgram, mesh);
+  gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+}
+
+export function redraw(meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0]) {
+  if (!gl || !renderProgram) return;
   const canvas = gl.canvas as HTMLCanvasElement;
   gl.viewport(0, 0, canvas.width, canvas.height);
-  // Clear color and depth
-  gl.clearColor(0, 0, 0, 0);
+  gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // Draw each mesh
-  meshes.forEach(m => {
-    drawMesh(m as any);
-  });
+  meshes.forEach(m => drawMesh(m));
 }
 
-// Activar o desactivar z-buffer
 export function setDepthTest(enabled: boolean) {
   if (!gl) return;
-  if (enabled) {
-    gl.enable(gl.DEPTH_TEST);
-  } else {
-    gl.disable(gl.DEPTH_TEST);
-  }
+  if (enabled) gl.enable(gl.DEPTH_TEST);
+  else gl.disable(gl.DEPTH_TEST);
 }
 
-// Activar o desactivar back-face culling
 export function setCulling(enabled: boolean) {
   if (!gl) return;
   if (enabled) {
     gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.BACK); // elimina caras traseras
+    gl.cullFace(gl.BACK);
   } else {
     gl.disable(gl.CULL_FACE);
   }
+}
+
+// Picking helpers
+function idToColor(id: number): [number, number, number] {
+  const r = (id & 0x000000FF) / 255.0;
+  const g = ((id & 0x0000FF00) >> 8) / 255.0;
+  const b = ((id & 0x00FF0000) >> 16) / 255.0;
+  return [r, g, b];
+}
+
+function drawMeshPicking(mesh: Mesh) {
+  if (!gl || !pickingProgram) return;
+
+  gl.useProgram(pickingProgram);
+  const { vertexCount } = buildBuffers(mesh, pickingProgram);
+
+  const uColor = gl.getUniformLocation(pickingProgram, "uColor");
+  const pickColor = idToColor(mesh.id || 0);
+  if (uColor) {
+    gl.uniform3fv(uColor, new Float32Array(pickColor));
+  }
+
+  applyMVP(pickingProgram, mesh);
+  gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+}
+
+function renderForPicking(meshes: Mesh[]) {
+  if (!gl || !pickingProgram) return;
+  const canvas = gl.canvas as HTMLCanvasElement;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  // Fondo negro sólido para el picking
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  meshes.forEach(m => drawMeshPicking(m));
+}
+
+// Renderiza pasada de picking, lee el pixel y luego RESTAURA la escena normal
+export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0]): number | null {
+  if (!gl) return null;
+
+  // Pasada de picking
+  renderForPicking(meshes);
+
+  // Leer pixel
+  const pixel = new Uint8Array(4);
+  gl.readPixels(x, canvas.height - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+  const id = pixel[0] + (pixel[1] << 8) + (pixel[2] << 16);
+  const result = id === 0 ? null : id;
+
+  // Restaurar escena normal
+  redraw(meshes, bgColor);
+
+  return result;
 }
