@@ -70,6 +70,9 @@ const Canvas: React.FC<CanvasProps> = ({
         console.log("Seleccionar nueva malla:", pickedId);
         setSelectedMeshId(pickedId);
       }
+    } else {
+      console.log("Click fuera → Deseleccionando");
+      setSelectedMeshId(null);
     }
   }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba]);
 
