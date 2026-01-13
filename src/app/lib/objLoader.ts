@@ -161,16 +161,65 @@ export function normalizeOBJ(obj: OBJData) {
 }
 
 // Cálculo de bounding box
+// En objLoader.ts, modifica la función computeBoundingBox:
+
 export function computeBoundingBox(mesh: { vertices: number[][]; faces: { v: number[] }[] }) {
-  const xs: number[] = [], ys: number[] = [], zs: number[] = [];
-  mesh.faces.forEach(face => {
-    face.v.forEach(idx => {
+  // Verificar si el mesh es válido
+  if (!mesh || !mesh.vertices || !mesh.faces || mesh.faces.length === 0) {
+    return {
+      min: [0, 0, 0],
+      max: [0, 0, 0]
+    };
+  }
+
+  // Inicializar con valores extremos
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  
+  // Usar un Set para evitar procesar el mismo vértice múltiples veces
+  const processedVertices = new Set<number>();
+  
+  // Iterar sobre un número limitado de caras para evitar overflow
+  // Para modelos muy grandes, muestreamos las caras
+  const sampleSize = Math.min(mesh.faces.length, 10000); // Limitar a 10,000 caras
+  
+  for (let i = 0; i < sampleSize; i++) {
+    const face = mesh.faces[i];
+    if (!face || !face.v) continue;
+    
+    for (const idx of face.v) {
+      // Evitar procesar el mismo vértice múltiples veces
+      if (processedVertices.has(idx)) continue;
+      processedVertices.add(idx);
+      
       const v = mesh.vertices[idx];
-      xs.push(v[0]); ys.push(v[1]); zs.push(v[2]);
-    });
-  });
+      if (!v || v.length < 3) continue;
+      
+      const [x, y, z] = v;
+      
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      minZ = Math.min(minZ, z);
+      
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      maxZ = Math.max(maxZ, z);
+    }
+    
+    // Salir temprano si ya hemos procesado suficientes vértices
+    if (processedVertices.size > 5000) break;
+  }
+  
+  // Si no encontramos vértices válidos, usar valores por defecto
+  if (minX === Infinity) {
+    return {
+      min: [0, 0, 0],
+      max: [1, 1, 1]
+    };
+  }
+  
   return {
-    min: [Math.min(...xs), Math.min(...ys), Math.min(...zs)],
-    max: [Math.max(...xs), Math.max(...ys), Math.max(...zs)]
+    min: [minX, minY, minZ],
+    max: [maxX, maxY, maxZ]
   };
 }

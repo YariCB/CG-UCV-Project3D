@@ -2,10 +2,9 @@ import { mat4 } from 'gl-matrix';
 import { computeBoundingBox } from './lib/objLoader';
 
 let gl: WebGLRenderingContext | null = null;
-
-// Programas
 let renderProgram: WebGLProgram | null = null;
 let pickingProgram: WebGLProgram | null = null;
+let lineProgram: WebGLProgram | null = null;
 
 export function initWebGL(canvas: HTMLCanvasElement): boolean {
   gl = canvas.getContext('webgl');
@@ -22,22 +21,30 @@ function createShader(type: number, source: string): WebGLShader {
   gl!.shaderSource(shader, source);
   gl!.compileShader(shader);
   if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
+    console.error("Shader compilation error:", gl!.getShaderInfoLog(shader));
     throw new Error(gl!.getShaderInfoLog(shader)!);
   }
   return shader;
 }
 
 function createProgram(vsSource: string, fsSource: string): WebGLProgram {
-  const vs = createShader(gl!.VERTEX_SHADER, vsSource);
-  const fs = createShader(gl!.FRAGMENT_SHADER, fsSource);
-  const program = gl!.createProgram()!;
-  gl!.attachShader(program, vs);
-  gl!.attachShader(program, fs);
-  gl!.linkProgram(program);
-  if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
-    throw new Error(gl!.getProgramInfoLog(program)!);
+  try {
+    const vs = createShader(gl!.VERTEX_SHADER, vsSource);
+    const fs = createShader(gl!.FRAGMENT_SHADER, fsSource);
+    const program = gl!.createProgram()!;
+    gl!.attachShader(program, vs);
+    gl!.attachShader(program, fs);
+    gl!.linkProgram(program);
+    if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
+      const error = gl!.getProgramInfoLog(program);
+      console.error("Program linking error:", error);
+      throw new Error(error || "Unknown linking error");
+    }
+    return program;
+  } catch (error) {
+    console.error("Error creating program:", error);
+    throw error;
   }
-  return program;
 }
 
 // Vertex shader (compartido)
@@ -190,17 +197,37 @@ export function drawMesh(mesh: Mesh) {
 }
 
 export function redraw(meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0], selectedMeshId?: number | null, bboxColor?: [number, number, number]) {
-  if (!gl || !renderProgram) return;
+  console.log("redraw llamado con:", { 
+    meshesCount: meshes.length, 
+    selectedMeshId, 
+    bboxColor, 
+    drawBoundingBox: selectedMeshId != null && bboxColor 
+  });
+  
+  if (!gl || !renderProgram) {
+    console.warn("WebGL no inicializado en redraw");
+    return;
+  }
+  
   const canvas = gl.canvas as HTMLCanvasElement;
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  meshes.forEach(m => drawMesh(m));
+  meshes.forEach(m => {
+    console.log("Dibujando malla id:", m.id);
+    drawMesh(m);
+  });
 
   if (selectedMeshId != null && bboxColor) {
+    console.log("Intentando dibujar BBox para malla:", selectedMeshId);
     const mesh = meshes.find(m => m.id === selectedMeshId);
-    if (mesh) drawBoundingBox(mesh, bboxColor);
+    if (mesh) {
+      console.log("Malla encontrada para BBox:", mesh);
+      drawBoundingBox(mesh, bboxColor);
+    } else {
+      console.warn("Malla no encontrada para BBox:", selectedMeshId);
+    }
   }
 }
 
@@ -281,78 +308,118 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
     return;
   }
 
-  // Obtener bbox en espacio de modelo
+  // Obtener bbox de forma optimizada
   const bbox = computeBoundingBox(mesh);
   let [minX, minY, minZ] = bbox.min;
   let [maxX, maxY, maxZ] = bbox.max;
 
-  // Expandir ligeramente la caja para evitar z-fighting con la malla
+  // Expandir ligeramente la caja
   const sizeX = maxX - minX;
   const sizeY = maxY - minY;
   const sizeZ = maxZ - minZ;
   const maxDim = Math.max(sizeX, sizeY, sizeZ, 1e-6);
-  const eps = maxDim * 0.002; // 0.2% de la dimensión
+  const eps = maxDim * 0.002;
+  
+  // Crear vértices directamente sin arrays intermedios grandes
+  const vertices = new Float32Array(72); // 12 aristas * 2 puntos * 3 componentes = 72
+  
+  // Ajustar coordenadas con epsilon
   minX -= eps; minY -= eps; minZ -= eps;
   maxX += eps; maxY += eps; maxZ += eps;
-
-  const corners = [
-    [minX, minY, minZ], [maxX, minY, minZ],
-    [maxX, maxY, minZ], [minX, maxY, minZ],
-    [minX, minY, maxZ], [maxX, minY, maxZ],
-    [maxX, maxY, maxZ], [minX, maxY, maxZ],
-  ];
-
-  const edges = [
-    [0,1],[1,2],[2,3],[3,0],
-    [4,5],[5,6],[6,7],[7,4],
-    [0,4],[1,5],[2,6],[3,7],
-  ];
-
-  const flatVerts: number[] = [];
-  edges.forEach(([a,b]) => {
-    flatVerts.push(...corners[a], ...corners[b]);
-  });
-
-  // Cambia temporalmente el programa para dibujar líneas sin iluminación
-  // Crea un programa simple para dibujar líneas
-  const lineVsSource = `
-    attribute vec3 aPosition;
-    uniform mat4 uMVP;
-    void main() {
-      gl_Position = uMVP * vec4(aPosition, 1.0);
-    }
-  `;
   
-  const lineFsSource = `
-    precision mediump float;
-    uniform vec3 uColor;
-    void main() {
-      gl_FragColor = vec4(uColor, 1.0);
-    }
-  `;
+  // Llenar el array directamente (más eficiente)
+  let idx = 0;
   
-  // Crea un programa temporal para líneas (solo una vez)
-  if (!window.lineProgram) {
-    window.lineProgram = createProgram(lineVsSource, lineFsSource);
+  // Aristas en Z mínimo
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  
+  // Aristas en Z máximo
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  // Aristas verticales
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+
+  // Crea el programa de líneas si no existe
+  if (!lineProgram) {
+    const lineVsSource = `
+      attribute vec3 aPosition;
+      uniform mat4 uMVP;
+      void main() {
+        gl_Position = uMVP * vec4(aPosition, 1.0);
+      }
+    `;
+    
+    const lineFsSource = `
+      precision mediump float;
+      uniform vec3 uColor;
+      void main() {
+        gl_FragColor = vec4(uColor, 1.0);
+      }
+    `;
+    
+    try {
+      lineProgram = createProgram(lineVsSource, lineFsSource);
+      console.log("Programa de líneas creado");
+    } catch (error) {
+      console.error("Error creando programa de líneas:", error);
+      return;
+    }
   }
   
-  gl.useProgram(window.lineProgram);
+  if (!lineProgram) {
+    console.error("No se pudo crear el programa de líneas");
+    return;
+  }
+  
+  gl.useProgram(lineProgram);
 
-  const aPosition = gl.getAttribLocation(window.lineProgram, "aPosition");
+  const aPosition = gl.getAttribLocation(lineProgram, "aPosition");
   const vertexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatVerts), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
   
   if (aPosition >= 0) {
     gl.enableVertexAttribArray(aPosition);
     gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
   }
 
-  const uColor = gl.getUniformLocation(window.lineProgram, "uColor");
-  if (uColor) gl.uniform3fv(uColor, new Float32Array(color));
+  const uColor = gl.getUniformLocation(lineProgram, "uColor");
+  if (uColor) {
+    gl.uniform3fv(uColor, new Float32Array(color));
+  }
 
-  // Aplica las mismas transformaciones que la malla
-  const uMVP = gl.getUniformLocation(window.lineProgram, "uMVP");
+  // Aplica las transformaciones
+  const uMVP = gl.getUniformLocation(lineProgram, "uMVP");
   if (uMVP) {
     const model = mat4.create();
     if (mesh.center && mesh.scale) {
@@ -372,15 +439,8 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
   }
 
   // Dibujar aristas como líneas
-  gl.drawArrays(gl.LINES, 0, flatVerts.length / 3);
+  gl.drawArrays(gl.LINES, 0, 24); // 12 aristas * 2 vértices = 24 vértices
   
   // Vuelve al programa de renderizado normal
   gl.useProgram(renderProgram);
-}
-
-// Declaración global para el programa de líneas
-declare global {
-  interface Window {
-    lineProgram?: WebGLProgram;
-  }
 }
