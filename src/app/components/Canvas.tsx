@@ -53,11 +53,10 @@ const Canvas: React.FC<CanvasProps> = ({
     if (!canvas || !setSelectedMeshId || !meshes.length) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const dpr = window.devicePixelRatio || 1;
-    const px = Math.floor(x * dpr);
-    const py = Math.floor(y * dpr);
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const px = Math.floor(Math.max(0, Math.min(x, canvas.width - 1)));
+    const py = Math.floor(Math.max(0, Math.min(y, canvas.height - 1)));;
     
     const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
     console.log("Click → ID:", pickedId, "Current:", selectedMeshId);
