@@ -472,12 +472,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               {/* Selector de color para BBox Local */}
               <div className="color-picker-relative-container">
                 <div className="preview-group">
-                  <button 
-                    className="color-preview-button sidebar-button" 
-                    onClick={() => setOpenPicker(openPicker === 'bboxLocal' ? null : 'bboxLocal')}
-                  >
-                    <div className="color-swatch" style={{background: bboxLocalColor}} />
-                  </button>
+                  <div className="tool-button-wrapper">
+                    <button 
+                      className="color-preview-button sidebar-button" 
+                      onClick={() => setOpenPicker(openPicker === 'bboxLocal' ? null : 'bboxLocal')}
+                    >
+                      <div className="color-swatch" style={{background: bboxLocalColor}} />
+                    </button>
+                    <span className="tool-button-label">BBox Color</span>
+                  </div>
                   
                   {openPicker === 'bboxLocal' && (
                     <div className="color-tooltip bbox-tooltip-adjust">
