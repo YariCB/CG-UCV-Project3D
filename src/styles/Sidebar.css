@@ -35,13 +35,13 @@
 
 .tool-group {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
   gap: 7px;
   margin: 5px;
 }
 
 .tool-button-wrapper {
-  width: 40px;
+  width: 42px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -340,6 +340,12 @@
 /* Wrapper para botón eliminar */
 .delete-wrapper {
   margin-left: auto;
+}
+
+.center-btn:hover{
+  background-color: #a191ff;
+  border-color: #ffffff;
+  color: #1b1b1b;
 }
 
 .delete-btn:hover {

@@ -54,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     culling: 'Back-face Culling',
     normals: 'Ver Normales',
     bbox: 'Bounding Box Global',
+    center: 'Centrar Objeto'
   };
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
@@ -379,6 +380,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="tool-button-wrapper">
             <button 
               className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
+              title = {wireframeLabel}
               onClick={() => toggleSetting('wireframe')}
             >
               <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
@@ -389,6 +391,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="tool-button-wrapper">
             <button 
               className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
+              title = {buttonLabels.normals}
               onClick={() => toggleSetting('normals')}
             >
               <ion-icon name="git-commit-outline"></ion-icon>
@@ -399,11 +402,23 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="tool-button-wrapper">
             <button 
               className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
+              title = {buttonLabels.bbox}
               onClick={() => toggleSetting('bbox')}
             >
               <ion-icon name="cube-outline"></ion-icon>
             </button>
             <span className="tool-button-label">{buttonLabels.bbox}</span>
+          </div>
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button center-btn`} 
+              title = {buttonLabels.center}
+              onClick={() => toggleSetting('center')}
+            >
+              <ion-icon name="contract-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.center}</span>
           </div>
 
         </div>
@@ -423,6 +438,27 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
+        </div>
+
+        <div className="transform-group">
+            <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
+            <div className="xyz-inputs">
+              <input type="number" placeholder="X" step="0.1" value={translateX} onChange={(e) => {
+                const v = e.target.value; setTranslateX(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
+              }} />
+              <input type="number" placeholder="Y" step="0.1" value={translateY} onChange={(e) => {
+                const v = e.target.value; setTranslateY(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
+              }} />
+              <input type="number" placeholder="Z" step="0.1" value={translateZ} onChange={(e) => {
+                const v = e.target.value; setTranslateZ(v);
+                const num = parseFloat(v) || 0;
+                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
+              }} />
+            </div>
         </div>
 
       </div>
@@ -477,7 +513,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <div className="transform-group">
-            <label className="label-small">Traslación (X, Y, Z)</label>
+            <label className="label-small">Traslación de la Sub-Malla (X, Y, Z)</label>
             <div className="xyz-inputs">
               <input type="number" placeholder="X" step="0.1" value={translateX} onChange={(e) => {
                 const v = e.target.value; setTranslateX(v);
