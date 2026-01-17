@@ -148,81 +148,106 @@ const Sidebar: React.FC<SidebarProps> = ({
   }
 
   // Carga del objeto 3D
-    const handleFileUpload = async (files: FileList | null) => {
-      if (!files) return;
-      const objFile = Array.from(files).find(f => f.name.endsWith(".obj"));
-      if (!objFile) {
-        setModalTitle('Error de carga');
-        setModalMessage('Debe seleccionar un archivo OBJ.');
-        setModalOnConfirm(() => () => setModalOpen(false));
-        setModalOpen(true);
-        return;
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files) return;
+    const objFile = Array.from(files).find(f => f.name.endsWith(".obj"));
+    if (!objFile) {
+      setModalTitle('Error de carga');
+      setModalMessage('Debe seleccionar un archivo OBJ.');
+      setModalOnConfirm(() => () => setModalOpen(false));
+      setModalOpen(true);
+      return;
+    }
+
+    const objText = await objFile.text();
+    const objData = parseOBJ(objText);
+
+    // Buscar MTL: preferir el mtllib indicado en el OBJ, si existe; intentar emparejar por nombre/base
+    let materials: Record<string, Material> = {};
+    const fileArray = Array.from(files);
+    let mtlFile: File | undefined;
+
+    if (objData.mtllib) {
+      // mtllib puede contener rutas, tomar sólo el basename y buscar coincidencias
+      const libName = objData.mtllib.split(/[/\\]/).pop();
+      if (libName) {
+        mtlFile = fileArray.find(f => f.name === libName || f.name.endsWith(libName));
       }
+    }
 
-      const objText = await objFile.text();
-      const objData = parseOBJ(objText);
+    // si no se encontró aún, intentar buscar un .mtl con mismo nombre que el OBJ
+    if (!mtlFile) {
+      const guessed = objFile.name.replace(/\.obj$/i, '.mtl');
+      mtlFile = fileArray.find(f => f.name === guessed || f.name.endsWith(guessed));
+    }
 
-      // Buscar MTL: preferir el mtllib indicado en el OBJ, si existe; intentar emparejar por nombre/base
-      let materials: Record<string, Material> = {};
-      const fileArray = Array.from(files);
-      let mtlFile: File | undefined;
+    // fallback: si hay algún .mtl en la lista, tomar el primero
+    if (!mtlFile) {
+      mtlFile = fileArray.find(f => f.name.toLowerCase().endsWith('.mtl'));
+    }
 
-      if (objData.mtllib) {
-        // mtllib puede contener rutas, tomar sólo el basename y buscar coincidencias
-        const libName = objData.mtllib.split(/[/\\]/).pop();
-        if (libName) {
-          mtlFile = fileArray.find(f => f.name === libName || f.name.endsWith(libName));
-        }
-      }
-
-      // si no se encontró aún, intentar buscar un .mtl con mismo nombre que el OBJ
-      if (!mtlFile) {
-        const guessed = objFile.name.replace(/\.obj$/i, '.mtl');
-        mtlFile = fileArray.find(f => f.name === guessed || f.name.endsWith(guessed));
-      }
-
-      // fallback: si hay algún .mtl en la lista, tomar el primero
-      if (!mtlFile) {
-        mtlFile = fileArray.find(f => f.name.toLowerCase().endsWith('.mtl'));
-      }
-
-      if (mtlFile) {
-        try {
-          const mtlText = await mtlFile.text();
-          materials = parseMTL(mtlText);
-        } catch (err) {
-          console.warn('Error leyendo MTL:', err);
-          setModalTitle('Error leyendo MTL');
-          setModalMessage('Error leyendo archivo MTL. Se asignará color gris por defecto.');
-          setModalOnConfirm(() => () => setModalOpen(false));
-          setModalOpen(true);
-          materials['default'] = { Kd: [0.7, 0.7, 0.7] };
-        }
-      } else {
-        setModalTitle('MTL no encontrado');
-        setModalMessage('No se encontró archivo MTL. Se asignará color gris por defecto.');
+    if (mtlFile) {
+      try {
+        const mtlText = await mtlFile.text();
+        materials = parseMTL(mtlText);
+      } catch (err) {
+        console.warn('Error leyendo MTL:', err);
+        setModalTitle('Error leyendo MTL');
+        setModalMessage('Error leyendo archivo MTL. Se asignará color gris por defecto.');
         setModalOnConfirm(() => () => setModalOpen(false));
         setModalOpen(true);
         materials['default'] = { Kd: [0.7, 0.7, 0.7] };
       }
+    } else {
+      setModalTitle('MTL no encontrado');
+      setModalMessage('No se encontró archivo MTL. Se asignará color gris por defecto.');
+      setModalOnConfirm(() => () => setModalOpen(false));
+      setModalOpen(true);
+      materials['default'] = { Kd: [0.7, 0.7, 0.7] };
+    }
 
-      // Asignar materiales a sub-mallas
-      const meshes = assignMaterials(objData, materials);
+    // Normalizar ANTES de asignar materiales
+    const { center, scale } = normalizeOBJ(objData);
+    
+    console.log("Normalización calculada:", { center, scale });
 
-      // Normalizar
-      const { center, scale } = normalizeOBJ(objData);
-      const normalizedMeshes = meshes.map(m => ({ ...m, center, scale, translate: [0,0,0] }));
+    // Aplicar normalización a los vértices
+    const normalizedVertices = objData.vertices.map(vertex => {
+      // Centrar y escalar
+      const x = (vertex[0] - center[0]) * scale;
+      const y = (vertex[1] - center[1]) * scale;
+      const z = (vertex[2] - center[2]) * scale;
+      return [x, y, z];
+    });
 
-      console.log(meshes);
-      console.log(normalizedMeshes);
-      // Ensure depth test and culling are enabled by default on import
-      setActiveSettings((prev: any) => ({ ...prev, zBuffer: true, culling: true }));
-      setDepthTest(true);
-      setCulling(true);
-      setMeshes(normalizedMeshes);
-      // ensure bbox local visible when importing selection defaults
-      setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
+    // Crear objeto normalizado
+    const normalizedObjData = {
+      ...objData,
+      vertices: normalizedVertices
     };
+
+    // Asignar materiales usando los vértices normalizados
+    const meshes = assignMaterials(normalizedObjData, materials);
+    
+    // Configurar posición inicial en (0, 0, -3)
+    const positionedMeshes = meshes.map(m => ({
+      ...m,
+      // El centro ya está en (0,0,0) después de la normalización
+      center: [0, 0, 0] as [number, number, number],
+      scale: 1, // Ya escalamos los vértices, así que mantenemos escala 1
+      translate: [0, 0, -3] as [number, number, number] // Posición inicial
+    }));
+
+    console.log("Meshes después de normalizar:", positionedMeshes);
+
+    // Ensure depth test and culling are enabled by default on import
+    setActiveSettings((prev: any) => ({ ...prev, zBuffer: true, culling: true }));
+    setDepthTest(true);
+    setCulling(true);
+    setMeshes(positionedMeshes);
+    // ensure bbox local visible when importing selection defaults
+    setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
+  };
 
   // Close picker when clicking outside
   useEffect(() => {

@@ -150,18 +150,19 @@ export function normalizeOBJ(obj: OBJData) {
     (minZ + maxZ) / 2,
   ];
 
+  // Calcular tamaño del bounding box
   const sizeX = maxX - minX;
   const sizeY = maxY - minY;
   const sizeZ = maxZ - minZ;
-  const maxSize = Math.max(sizeX, sizeY, sizeZ);
+  const maxSize = Math.max(sizeX, sizeY, sizeZ, 0.001); // Evitar división por 0
 
-  const scale = 2.0 / maxSize; // Escala para que quepa en [-1,1]
+  // Escala para que quepa en un cubo de tamaño 1 (lado 1)
+  const scale = 1.0 / maxSize;
 
   return { center, scale };
 }
 
 // Cálculo de bounding box
-// En objLoader.ts, modifica la función computeBoundingBox:
 
 export function computeBoundingBox(mesh: { vertices: number[][]; faces: { v: number[] }[] }) {
   // Verificar si el mesh es válido

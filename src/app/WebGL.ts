@@ -155,19 +155,30 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
   return { vertexCount: flatVerts.length / 3 };
 }
 
+// En WebGL.ts, modifica la función applyMVP:
 function applyMVP(program: WebGLProgram, mesh: Mesh) {
   const model = mat4.create();
-  if (mesh.center && mesh.scale) {
-    mat4.translate(model, model, [0, 0, -3]);
-    mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
-    mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
-    if ((mesh as any).translate) {
-      const t = (mesh as any).translate as [number, number, number];
-      mat4.translate(model, model, t);
-    }
+  
+  // 1. Aplicar traslación del mesh (translate ya incluye el -3 en Z)
+  if (mesh.translate) {
+    const t = mesh.translate as [number, number, number];
+    mat4.translate(model, model, t);
   }
+  
+  // 2. Escalar el mesh (si hay escala)
+  if (mesh.scale && mesh.scale !== 1) {
+    mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+  }
+  
+  // 3. Centrar el mesh (si hay centro definido)
+  if (mesh.center && (mesh.center[0] !== 0 || mesh.center[1] !== 0 || mesh.center[2] !== 0)) {
+    mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+  }
+
+  // Proyección (sin cambios)
   const projection = mat4.create();
   mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
+  
   const mvp = mat4.create();
   mat4.multiply(mvp, projection, model);
 
@@ -423,14 +434,19 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
   if (uMVP) {
     const model = mat4.create();
     if (mesh.center && mesh.scale) {
-      mat4.translate(model, model, [0, 0, -3]);
-      mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
-      mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+      // 1. Aplicar traslación
       if (mesh.translate) {
         const t = mesh.translate as [number, number, number];
         mat4.translate(model, model, t);
       }
+      
+      // 2. Escalar
+      mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+      
+      // 3. Centrar
+      mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
     }
+    
     const projection = mat4.create();
     mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
     const mvp = mat4.create();
