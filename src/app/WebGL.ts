@@ -235,8 +235,14 @@ function calculateModelMatrix(mesh: Mesh): mat4 {
   }
   
   // 2. Escalar el mesh (si hay escala)
-  if (mesh.scale && mesh.scale !== 1) {
-    mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+  if (mesh.scale) {
+    if (typeof mesh.scale === 'number') {
+      // Escala uniforme
+      mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+    } else if (Array.isArray(mesh.scale) && mesh.scale.length === 3) {
+      // Escala no uniforme [x, y, z]
+      mat4.scale(model, model, [mesh.scale[0], mesh.scale[1], mesh.scale[2]]);
+    }
   }
   
   // 3. Aplicar traslación del mesh
@@ -535,7 +541,11 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
       }
       
       // 2. Escalar
-      mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+      if (typeof mesh.scale === 'number') {
+        mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+      } else if (Array.isArray(mesh.scale) && mesh.scale.length === 3) {
+        mat4.scale(model, model, [mesh.scale[0], mesh.scale[1], mesh.scale[2]]);
+      }
       
       // 3. Centrar
       mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
@@ -610,10 +620,16 @@ function applyMeshTransform(mesh: Mesh, point: [number, number, number]): [numbe
   }
   
   // Aplicar escala (si existe)
-  if (mesh.scale && mesh.scale !== 1) {
-    x *= mesh.scale;
-    y *= mesh.scale;
-    z *= mesh.scale;
+  if (mesh.scale) {
+    if (typeof mesh.scale === 'number') {
+      x *= mesh.scale;
+      y *= mesh.scale;
+      z *= mesh.scale;
+    } else if (Array.isArray(mesh.scale) && mesh.scale.length === 3) {
+      x *= mesh.scale[0];
+      y *= mesh.scale[1];
+      z *= mesh.scale[2];
+    }
   }
   
   // Aplicar traslación (si existe)

@@ -36,7 +36,7 @@
     "icon": "src/assets/icon.png",
     "toolbar": true,
     "position": "center",
-    "width": 1280,
-    "height": 720
+    "width": 1920,
+    "height": 1080
   }
 }

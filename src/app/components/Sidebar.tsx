@@ -46,9 +46,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [hasSelection, setHasSelection] = useState(false); 
   const [normalsColor, setNormalsColor] = useState<string>('rgba(0,255,0,1)');
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
+  
+  // Estados para inputs de traslación
   const [translateX, setTranslateX] = useState<string>('0');
   const [translateY, setTranslateY] = useState<string>('0');
   const [translateZ, setTranslateZ] = useState<string>('0');
+
+  // Estados para inputs de escala
+  const [scaleX, setScaleX] = useState<string>('1');
+  const [scaleY, setScaleY] = useState<string>('1');
+  const [scaleZ, setScaleZ] = useState<string>('1');
 
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd' | 'bboxLocal'>(null);
   const buttonLabels: Record<string, string> = {
@@ -89,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
     }
     
-    // sync translate inputs (mover aquí para ejecutarse siempre)
+    // sync translate inputs
     const mesh2 = meshes.find(m => m.id === selectedMeshId);
     if (mesh2 && mesh2.translate) {
       setTranslateX(String(mesh2.translate[0] || 0));
@@ -97,6 +104,24 @@ const Sidebar: React.FC<SidebarProps> = ({
       setTranslateZ(String(mesh2.translate[2] || 0));
     } else {
       setTranslateX('0'); setTranslateY('0'); setTranslateZ('0');
+    }
+
+    // sync scale inputs
+    if (mesh2 && mesh2.scale) {
+      // Si scale es un número (escala uniforme)
+      if (typeof mesh2.scale === 'number') {
+        setScaleX(String(mesh2.scale));
+        setScaleY(String(mesh2.scale));
+        setScaleZ(String(mesh2.scale));
+      } 
+      // Si scale es un array [x, y, z] (escala no uniforme)
+      else if (Array.isArray(mesh2.scale) && mesh2.scale.length === 3) {
+        setScaleX(String(mesh2.scale[0]));
+        setScaleY(String(mesh2.scale[1]));
+        setScaleZ(String(mesh2.scale[2]));
+      }
+    } else {
+      setScaleX('1'); setScaleY('1'); setScaleZ('1');
     }
   }, [selectedMeshId, meshes]);
 
@@ -246,9 +271,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     // Configurar posición inicial en (0, 0, -3)
     const positionedMeshes = meshes.map(m => ({
       ...m,
-      // El centro ya está en (0,0,0) después de la normalización
       center: [0, 0, 0] as [number, number, number],
-      scale: 1, // Ya escalamos los vértices, así que mantenemos escala 1
+      scale: 1,
       translate: [0, 0, -3] as [number, number, number] // Posición inicial
     }));
 
@@ -522,8 +546,42 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
             </div>
-            
+        </div>
 
+        <div className="transform-group">
+            <label className="label-small">Escala del Objeto (X, Y, Z)</label>
+            <div className="xyz-inputs">
+              <input type="number" placeholder="X" step="0.1" value={scaleX} onChange={(e) => {
+                const v = e.target.value; setScaleX(v);
+                const num = parseFloat(v) || 1;
+                setMeshes(prev => prev.map(mesh => ({
+                  ...mesh,
+                  scale: Array.isArray(mesh.scale) 
+                    ? [num, mesh.scale[1] || 1, mesh.scale[2] || 1]
+                    : [num, mesh.scale || 1, mesh.scale || 1]
+                })));
+              }} />
+              <input type="number" placeholder="Y" step="0.1" value={scaleY} onChange={(e) => {
+                const v = e.target.value; setScaleY(v);
+                const num = parseFloat(v) || 1;
+                setMeshes(prev => prev.map(mesh => ({
+                  ...mesh,
+                  scale: Array.isArray(mesh.scale) 
+                    ? [mesh.scale[0] || 1, num, mesh.scale[2] || 1]
+                    : [mesh.scale || 1, num, mesh.scale || 1]
+                })));
+              }} />
+              <input type="number" placeholder="Z" step="0.1" value={scaleZ} onChange={(e) => {
+                const v = e.target.value; setScaleZ(v);
+                const num = parseFloat(v) || 1;
+                setMeshes(prev => prev.map(mesh => ({
+                  ...mesh,
+                  scale: Array.isArray(mesh.scale) 
+                    ? [mesh.scale[0] || 1, mesh.scale[1] || 1, num]
+                    : [mesh.scale || 1, mesh.scale || 1, num]
+                })));
+              }} />
+            </div>
         </div>
 
       </div>
