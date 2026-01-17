@@ -33,6 +33,9 @@ const Canvas: React.FC<CanvasProps> = ({
   const lastMouseXRef = useRef(0);
   const lastMouseYRef = useRef(0);
 
+  // Profundidad inicial del objeto
+  const initialDepthRef = useRef<number>(-3); 
+
   const parseRgba = useCallback((c: string): [number, number, number, number] => {
     const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
     if (!m) return [0, 0, 0, 1];
@@ -73,12 +76,19 @@ const Canvas: React.FC<CanvasProps> = ({
       isDraggingRef.current = true;
       lastMouseXRef.current = e.clientX;
       lastMouseYRef.current = e.clientY;
+
+      // Guardar la profundidad actual del objeto seleccionado
+      const mesh = meshes.find(m => m.id === selectedMeshId);
+      if (mesh && mesh.translate) {
+        initialDepthRef.current = mesh.translate[2] || -3;
+      }
+
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
     }
   }, [meshes, bgColor, selectedMeshId, setMeshes, parseRgba]);
 
-  // DRAG - mousemove SIMPLE Y PRECISO
+  // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDraggingRef.current || !selectedMeshId || !setMeshes) return;
 
@@ -88,12 +98,32 @@ const Canvas: React.FC<CanvasProps> = ({
     const deltaX = e.clientX - lastMouseXRef.current;
     const deltaY = e.clientY - lastMouseYRef.current;
 
-    const sensitivity = 0.01;
-    const translateDelta = [
-      deltaX * sensitivity,
-      -deltaY * sensitivity,
-      0
-    ];
+    // Obtener información del mesh seleccionado
+    const selectedMesh = meshes.find(m => m.id === selectedMeshId);
+    if (!selectedMesh) return;
+
+    // Obtener la profundidad actual (coordenada Z)
+    const currentZ = selectedMesh.translate?.[2] || initialDepthRef.current;
+    
+    // Calcular el tamaño del viewport
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calcular factor de escala basado en la distancia (perspectiva)
+    // Cuanto más cerca esté el objeto, más sensible será el movimiento
+    const distanceFactor = Math.max(0.1, Math.abs(currentZ) / 10.0);
+    
+    // Convertir píxeles a coordenadas del mundo 3D
+    // Usamos una relación que considera el campo de visión (FOV)
+    const fov = Math.PI / 4; // 45 grados
+    const aspect = rect.width / rect.height;
+    
+    // Calcular la altura del viewport en unidades del mundo a la distancia del objeto
+    const worldHeight = 2 * Math.tan(fov / 2) * Math.abs(currentZ);
+    const worldWidth = worldHeight * aspect;
+    
+    // Convertir movimiento de píxeles a movimiento del mundo
+    const moveX = (deltaX / rect.width) * worldWidth;
+    const moveY = -(deltaY / rect.height) * worldHeight; // Negativo porque Y crece hacia abajo en pantalla
 
     setMeshes(prevMeshes =>
       prevMeshes.map(mesh =>
@@ -101,9 +131,9 @@ const Canvas: React.FC<CanvasProps> = ({
           ? {
               ...mesh,
               translate: [
-                (mesh.translate?.[0] || 0) + translateDelta[0],
-                (mesh.translate?.[1] || 0) + translateDelta[1],
-                (mesh.translate?.[2] || 0) + translateDelta[2]
+                (mesh.translate?.[0] || 0) + moveX,
+                (mesh.translate?.[1] || 0) + moveY,
+                currentZ // Mantener la misma profundidad
               ]
             }
           : mesh
@@ -112,7 +142,10 @@ const Canvas: React.FC<CanvasProps> = ({
 
     lastMouseXRef.current = e.clientX;
     lastMouseYRef.current = e.clientY;
-  }, [selectedMeshId, setMeshes]);
+    
+    // Forzar redraw
+    setDragCounter(prev => prev + 1);
+  }, [selectedMeshId, setMeshes, meshes]);
 
   // DRAG END - mouseup
   const handleMouseUp = useCallback(() => {
@@ -154,7 +187,8 @@ const Canvas: React.FC<CanvasProps> = ({
       setSelectedMeshId(null);
     }
   }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba]);
-
+  
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
