@@ -52,22 +52,47 @@ const vsSource = `
 attribute vec3 aPosition;
 attribute vec3 aNormal;
 uniform mat4 uMVP;
+uniform mat4 uModel;  // Nueva: matriz de modelo
 varying vec3 vNormal;
+varying vec3 vPosition;
+
 void main() {
   gl_Position = uMVP * vec4(aPosition, 1.0);
-  vNormal = aNormal;
+  
+  // Pasar posición y normal en espacio de modelo (para iluminación)
+  vPosition = (uModel * vec4(aPosition, 1.0)).xyz;
+  vNormal = normalize((uModel * vec4(aNormal, 0.0)).xyz);
 }
 `;
 
 // Fragment shader de render (con iluminación)
 const fsRender = `
 precision mediump float;
+
 uniform vec3 uColor;
-uniform vec3 uLightDir;
+uniform vec3 uLightDir;  // Dirección de la luz
+uniform vec3 uLightColor; // Color de la luz
+uniform vec3 uAmbientColor; // Color ambiente
+
 varying vec3 vNormal;
+varying vec3 vPosition;
+
 void main() {
-  float diff = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
-  gl_FragColor = vec4(uColor * diff, 1.0);
+  // Normalizar vectores
+  vec3 normal = normalize(vNormal);
+  vec3 lightDir = normalize(uLightDir);
+  
+  // Componente difusa
+  float diff = max(dot(normal, lightDir), 0.0);
+  vec3 diffuse = diff * uLightColor;
+  
+  // Componente ambiente
+  vec3 ambient = uAmbientColor;
+  
+  // Combinar colores
+  vec3 finalColor = (ambient + diffuse) * uColor;
+  
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -107,24 +132,53 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
     if (verts.length < 3) return;
 
     if (verts.length === 3) {
+      // Triángulo simple
       for (let i = 0; i < 3; i++) {
         const vidx = verts[i];
         flatVerts.push(...mesh.vertices[vidx]);
-        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!] ) {
-          flatNormals.push(...mesh.normals[norms[i]!]!);
+        
+        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!]) {
+          // Usar normal del archivo si existe
+          const normal = mesh.normals[norms[i]!]!;
+          flatNormals.push(...normal);
         } else {
-          flatNormals.push(0, 0, 1);
+          // Calcular normal aproximada para la cara
+          const v0 = mesh.vertices[verts[0]];
+          const v1 = mesh.vertices[verts[1]];
+          const v2 = mesh.vertices[verts[2]];
+          
+          const edge1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+          const edge2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+          
+          // Producto cruz
+          const normal = [
+            edge1[1] * edge2[2] - edge1[2] * edge2[1],
+            edge1[2] * edge2[0] - edge1[0] * edge2[2],
+            edge1[0] * edge2[1] - edge1[1] * edge2[0]
+          ];
+          
+          // Normalizar
+          const length = Math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2);
+          if (length > 0) {
+            flatNormals.push(normal[0]/length, normal[1]/length, normal[2]/length);
+          } else {
+            flatNormals.push(0, 0, 1);
+          }
         }
       }
     } else {
+      // Polígono - triangular en abanico
       for (let i = 1; i < verts.length - 1; i++) {
         const tri = [0, i, i + 1];
         for (const t of tri) {
           const vidx = verts[t];
           flatVerts.push(...mesh.vertices[vidx]);
-          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!] ) {
-            flatNormals.push(...mesh.normals[norms[t]!]!);
+          
+          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!]) {
+            const normal = mesh.normals[norms[t]!]!;
+            flatNormals.push(...normal);
           } else {
+            // Normal por defecto para caras complejas
             flatNormals.push(0, 0, 1);
           }
         }
@@ -157,12 +211,27 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
 
 // En WebGL.ts, modifica la función applyMVP:
 function applyMVP(program: WebGLProgram, mesh: Mesh) {
+  const model = calculateModelMatrix(mesh);
+
+  // Proyección
+  const projection = mat4.create();
+  mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
+  
+  // MVP = Proyección × Modelo
+  const mvp = mat4.create();
+  mat4.multiply(mvp, projection, model);
+
+  const uMVP = gl!.getUniformLocation(program, "uMVP");
+  gl!.uniformMatrix4fv(uMVP, false, mvp);
+}
+
+// Función auxiliar para calcular matriz de modelo
+function calculateModelMatrix(mesh: Mesh): mat4 {
   const model = mat4.create();
   
-  // 1. Aplicar traslación del mesh (translate ya incluye el -3 en Z)
-  if (mesh.translate) {
-    const t = mesh.translate as [number, number, number];
-    mat4.translate(model, model, t);
+  // 1. Centrar el mesh (si hay centro definido)
+  if (mesh.center && (mesh.center[0] !== 0 || mesh.center[1] !== 0 || mesh.center[2] !== 0)) {
+    mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
   }
   
   // 2. Escalar el mesh (si hay escala)
@@ -170,20 +239,13 @@ function applyMVP(program: WebGLProgram, mesh: Mesh) {
     mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
   }
   
-  // 3. Centrar el mesh (si hay centro definido)
-  if (mesh.center && (mesh.center[0] !== 0 || mesh.center[1] !== 0 || mesh.center[2] !== 0)) {
-    mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+  // 3. Aplicar traslación del mesh
+  if (mesh.translate) {
+    const t = mesh.translate as [number, number, number];
+    mat4.translate(model, model, t);
   }
-
-  // Proyección (sin cambios)
-  const projection = mat4.create();
-  mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
   
-  const mvp = mat4.create();
-  mat4.multiply(mvp, projection, model);
-
-  const uMVP = gl!.getUniformLocation(program, "uMVP");
-  gl!.uniformMatrix4fv(uMVP, false, mvp);
+  return model;
 }
 
 export function drawMesh(mesh: Mesh) {
@@ -192,18 +254,41 @@ export function drawMesh(mesh: Mesh) {
   gl.useProgram(renderProgram);
   const { vertexCount } = buildBuffers(mesh, renderProgram);
 
-  // Color y luz
+  // Color del material
   const uColor = gl.getUniformLocation(renderProgram, "uColor");
   if (uColor) {
     const colorArr = new Float32Array(mesh.color as [number, number, number]);
     gl.uniform3fv(uColor, colorArr);
   }
+  
+  // Dirección de la luz (desde arriba y un poco al frente)
   const uLightDir = gl.getUniformLocation(renderProgram, "uLightDir");
   if (uLightDir) {
-    gl.uniform3fv(uLightDir, new Float32Array([0.0, 0.0, 1.0]));
+    gl.uniform3fv(uLightDir, new Float32Array([0.3, 0.5, 1.0]));
+  }
+  
+  // Color de la luz (blanco)
+  const uLightColor = gl.getUniformLocation(renderProgram, "uLightColor");
+  if (uLightColor) {
+    gl.uniform3fv(uLightColor, new Float32Array([1.0, 1.0, 1.0]));
+  }
+  
+  // Color ambiente (gris claro para evitar superficies completamente negras)
+  const uAmbientColor = gl.getUniformLocation(renderProgram, "uAmbientColor");
+  if (uAmbientColor) {
+    gl.uniform3fv(uAmbientColor, new Float32Array([0.3, 0.3, 0.3]));
   }
 
+  // Aplicar MVP y también pasar la matriz de modelo separadamente
   applyMVP(renderProgram, mesh);
+  
+  // Pasar matriz de modelo también
+  const uModel = gl.getUniformLocation(renderProgram, "uModel");
+  if (uModel) {
+    const model = calculateModelMatrix(mesh);
+    gl.uniformMatrix4fv(uModel, false, model);
+  }
+
   gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 }
 
