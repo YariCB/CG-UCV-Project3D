@@ -78,8 +78,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         const b = Math.round((mesh.color[2] || 0) * 255);
         setKdColor(`rgba(${r},${g},${b},1)`);
       }
-      // ← Solo activar bboxlocal si no está ya activo (evita toggle forzado)
+      // Solo activar bboxlocal si no está ya activo (evita toggle forzado)
       setActiveSettings((prev: any) => ({ ...prev, bboxlocal: true }));
+
+      // Desactivar BBox global cuando se selecciona una submalla
+      setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
     }
     
     // sync translate inputs (mover aquí para ejecutarse siempre)
@@ -96,6 +99,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const toggleSetting = (key: string) => {
     setActiveSettings((prev: any) => {
       const newState = { ...prev, [key]: !prev[key] };
+
+      // BBox global y local mutuamente excluyentes
+      if (key === 'bbox' && newState.bbox) {
+        newState.bboxlocal = false;
+      } else if (key === 'bboxlocal' && newState.bboxlocal) {
+        newState.bbox = false;
+      }
 
       if (key === 'zBuffer') {
         setDepthTest(newState.zBuffer);

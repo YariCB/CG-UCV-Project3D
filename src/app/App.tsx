@@ -31,9 +31,20 @@ const App: React.FC = () => {
 		wireframe: false,
 	});
 
-	// En el nivel superior (App.tsx)
 	const toggleBBoxLocal = useCallback(() => {
-	setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }));
+	setActiveSettings(prev => ({ 
+		...prev, 
+		bboxlocal: !prev.bboxlocal,
+		// bbox: prev.bboxlocal ? prev.bbox : false // Desactivar BBox global si se activa local
+	}));
+	}, []);
+
+	const toggleBBoxGlobal = useCallback(() => {
+	setActiveSettings(prev => ({ 
+		...prev, 
+		bbox: !prev.bbox,
+		bboxlocal: prev.bbox ? prev.bboxlocal : false // Desactivar BBox local si se activa global
+	}));
 	}, []);
 
 	// Exponer globalmente
@@ -67,6 +78,8 @@ const App: React.FC = () => {
 					bboxColor={activeSettings.bboxlocal && selectedMeshId !== null ? bboxLocalColor : undefined}
 					showLocalBBox={activeSettings.bboxlocal}
 					toggleBBoxLocal={() => setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }))}
+					activeSettings={activeSettings}
+					setActiveSettings={setActiveSettings}
 				/>
 			</div>
 		</div>

@@ -13,6 +13,8 @@ interface CanvasProps {
   bboxColor?: string;
   showLocalBBox?: boolean;
   toggleBBoxLocal?: () => void;
+  activeSettings?: any;
+  setActiveSettings?: React.Dispatch<React.SetStateAction<any>>;
 }
 
 const Canvas: React.FC<CanvasProps> = ({ 
@@ -25,13 +27,18 @@ const Canvas: React.FC<CanvasProps> = ({
   setMeshes,
   bboxColor,
   showLocalBBox,
-  toggleBBoxLocal
+  toggleBBoxLocal,
+  activeSettings = {},
+  setActiveSettings
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [dragCounter, setDragCounter] = useState(0);
   const isDraggingRef = useRef(false);
   const lastMouseXRef = useRef(0);
   const lastMouseYRef = useRef(0);
+
+  // Arrastre del objeto completo
+  const isDraggingObjectRef = useRef(false);
 
   // Profundidad inicial del objeto
   const initialDepthRef = useRef<number>(-3); 
@@ -49,14 +56,23 @@ const Canvas: React.FC<CanvasProps> = ({
 
   const handleRedraw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !meshes.length) return;
+    if (!canvas) return;
 
     const bboxRgb = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
     const localMeshId = showLocalBBox && selectedMeshId !== null ? selectedMeshId : undefined;
     
-    redraw(meshes, parseRgba(bgColor), localMeshId, bboxRgb);
-  }, [meshes, bgColor, bboxColor, selectedMeshId, showLocalBBox, parseRgba]);
-
+    // Color para BBox global (rojo por defecto)
+    const globalBBoxColor = [1, 0, 0] as [number, number, number];
+    
+    redraw(
+      meshes, 
+      parseRgba(bgColor), 
+      localMeshId, 
+      bboxRgb,
+      activeSettings.bbox, // Mostrar BBox global si está activa
+      globalBBoxColor
+    );
+  }, [meshes, bgColor, bboxColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
 
   // DRAG START - mousedown sobre sub-malla seleccionada
   const handleMouseDown = useCallback((e: MouseEvent) => {
@@ -70,27 +86,53 @@ const Canvas: React.FC<CanvasProps> = ({
     const py = Math.floor(Math.max(0, Math.min(y, canvas.height - 1)));
     
     const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
+
+    // Determinar si estamos arrastrando el objeto completo o una submalla
+    const shouldDragObject = 
+      // Si BBox global está activa
+      activeSettings.bbox || 
+      // O si no hay submalla seleccionada
+      selectedMeshId === null || 
+      // O si clickeamos fuera de la submalla seleccionada
+      (pickedId !== selectedMeshId);
     
-    // Solo iniciar drag si clickeamos la sub-malla seleccionada
-    if (pickedId === selectedMeshId) {
+    if (shouldDragObject) {
+      // Arrastrar objeto completo
       isDraggingRef.current = true;
+      isDraggingObjectRef.current = true;
       lastMouseXRef.current = e.clientX;
       lastMouseYRef.current = e.clientY;
-
-      // Guardar la profundidad actual del objeto seleccionado
+      
+      // Usar profundidad promedio de todos los meshes
+      if (meshes.length > 0) {
+        const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
+        initialDepthRef.current = totalZ / meshes.length;
+      }
+      
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    } else if (pickedId === selectedMeshId) {
+      // Arrastrar submalla seleccionada
+      isDraggingRef.current = true;
+      isDraggingObjectRef.current = false;
+      lastMouseXRef.current = e.clientX;
+      lastMouseYRef.current = e.clientY;
+      
+      // Guardar la profundidad del objeto seleccionado
       const mesh = meshes.find(m => m.id === selectedMeshId);
       if (mesh && mesh.translate) {
         initialDepthRef.current = mesh.translate[2] || -3;
       }
-
+      
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
     }
-  }, [meshes, bgColor, selectedMeshId, setMeshes, parseRgba]);
+  }, [meshes, bgColor, selectedMeshId, setMeshes, parseRgba, activeSettings]);
+    
 
   // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingRef.current || !selectedMeshId || !setMeshes) return;
+    if (!isDraggingRef.current || !setMeshes) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -98,47 +140,67 @@ const Canvas: React.FC<CanvasProps> = ({
     const deltaX = e.clientX - lastMouseXRef.current;
     const deltaY = e.clientY - lastMouseYRef.current;
 
-    // Obtener información del mesh seleccionado
-    const selectedMesh = meshes.find(m => m.id === selectedMeshId);
-    if (!selectedMesh) return;
-
-    // Obtener la profundidad actual (coordenada Z)
-    const currentZ = selectedMesh.translate?.[2] || initialDepthRef.current;
-    
-    // Calcular el tamaño del viewport
+    // Calcular el factor de movimiento
     const rect = canvas.getBoundingClientRect();
-    
-    // Calcular factor de escala basado en la distancia (perspectiva)
-    // Cuanto más cerca esté el objeto, más sensible será el movimiento
-    const distanceFactor = Math.max(0.1, Math.abs(currentZ) / 10.0);
-    
-    // Convertir píxeles a coordenadas del mundo 3D
-    // Usamos una relación que considera el campo de visión (FOV)
     const fov = Math.PI / 4; // 45 grados
     const aspect = rect.width / rect.height;
     
-    // Calcular la altura del viewport en unidades del mundo a la distancia del objeto
-    const worldHeight = 2 * Math.tan(fov / 2) * Math.abs(currentZ);
-    const worldWidth = worldHeight * aspect;
-    
-    // Convertir movimiento de píxeles a movimiento del mundo
-    const moveX = (deltaX / rect.width) * worldWidth;
-    const moveY = -(deltaY / rect.height) * worldHeight; // Negativo porque Y crece hacia abajo en pantalla
+    if (isDraggingObjectRef.current) {
+      // Arrastrar objeto completo
+      if (meshes.length === 0) return;
+      
+      // Usar profundidad promedio
+      const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
+      const currentZ = totalZ / meshes.length;
+      
+      // Calcular movimiento
+      const worldHeight = 2 * Math.tan(fov / 2) * Math.abs(currentZ);
+      const worldWidth = worldHeight * aspect;
+      
+      const moveX = (deltaX / rect.width) * worldWidth;
+      const moveY = -(deltaY / rect.height) * worldHeight;
 
-    setMeshes(prevMeshes =>
-      prevMeshes.map(mesh =>
-        mesh.id === selectedMeshId
-          ? {
-              ...mesh,
-              translate: [
-                (mesh.translate?.[0] || 0) + moveX,
-                (mesh.translate?.[1] || 0) + moveY,
-                currentZ // Mantener la misma profundidad
-              ]
-            }
-          : mesh
-      )
-    );
+      // Aplicar a todas las submallas
+      setMeshes(prevMeshes =>
+        prevMeshes.map(mesh => ({
+          ...mesh,
+          translate: [
+            (mesh.translate?.[0] || 0) + moveX,
+            (mesh.translate?.[1] || 0) + moveY,
+            (mesh.translate?.[2] || -3)
+          ]
+        }))
+      );
+    } else {
+      // Arrastrar submalla seleccionada
+      if (!selectedMeshId) return;
+      
+      const selectedMesh = meshes.find(m => m.id === selectedMeshId);
+      if (!selectedMesh) return;
+      
+      const currentZ = selectedMesh.translate?.[2] || initialDepthRef.current;
+      
+      const worldHeight = 2 * Math.tan(fov / 2) * Math.abs(currentZ);
+      const worldWidth = worldHeight * aspect;
+      
+      const moveX = (deltaX / rect.width) * worldWidth;
+      const moveY = -(deltaY / rect.height) * worldHeight;
+
+      setMeshes(prevMeshes =>
+        prevMeshes.map(mesh =>
+          mesh.id === selectedMeshId
+            ? {
+                ...mesh,
+                translate: [
+                  (mesh.translate?.[0] || 0) + moveX,
+                  (mesh.translate?.[1] || 0) + moveY,
+                  currentZ
+                ]
+              }
+            : mesh
+        )
+      );
+    }
 
     lastMouseXRef.current = e.clientX;
     lastMouseYRef.current = e.clientY;
@@ -151,12 +213,29 @@ const Canvas: React.FC<CanvasProps> = ({
   const handleMouseUp = useCallback(() => {
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
+      isDraggingObjectRef.current = false;
       const canvas = canvasRef.current;
       if (canvas) {
+        // Restaurar cursor según si hay selección
         canvas.style.cursor = selectedMeshId ? 'grab' : 'default';
       }
     }
   }, [selectedMeshId]);
+
+  // Actualizar cursor según el contexto
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Si BBox global está activa, mostrar cursor de movimiento para objeto completo
+    if (activeSettings.bbox) {
+      canvas.style.cursor = 'move';
+    } else if (selectedMeshId) {
+      canvas.style.cursor = 'grab';
+    } else {
+      canvas.style.cursor = 'default';
+    }
+  }, [selectedMeshId, activeSettings]);
 
   const handleClick = useCallback((e: MouseEvent) => {
     // Ignorar click durante arrastre
@@ -181,14 +260,23 @@ const Canvas: React.FC<CanvasProps> = ({
       } else {
         console.log("Seleccionar nueva malla:", pickedId);
         setSelectedMeshId(pickedId);
+        // Si se selecciona una nueva malla, desactivar BBox global
+        if (setActiveSettings) {
+          setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
+        }
       }
     } else {
       console.log("Click fuera → Deseleccionando");
       setSelectedMeshId(null);
+      // Click fuera: desactivar tanto BBox local como global
+      toggleBBoxLocal?.();
+      if (setActiveSettings) {
+        setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
+      }
     }
-  }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba]);
+  }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba, setActiveSettings]);
   
-  
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;

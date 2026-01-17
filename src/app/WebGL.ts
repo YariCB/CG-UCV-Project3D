@@ -292,12 +292,19 @@ export function drawMesh(mesh: Mesh) {
   gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 }
 
-export function redraw(meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0], selectedMeshId?: number | null, bboxColor?: [number, number, number]) {
+export function redraw(
+  meshes: Mesh[], 
+  bgColor: [number, number, number, number] = [0,0,0,0], 
+  selectedMeshId?: number | null, 
+  bboxColor?: [number, number, number],
+  showGlobalBBox?: boolean,
+  globalBBoxColor?: [number, number, number]
+) {
   console.log("redraw llamado con:", { 
     meshesCount: meshes.length, 
     selectedMeshId, 
     bboxColor, 
-    drawBoundingBox: selectedMeshId != null && bboxColor 
+    showGlobalBBox 
   });
   
   if (!gl || !renderProgram) {
@@ -311,19 +318,21 @@ export function redraw(meshes: Mesh[], bgColor: [number, number, number, number]
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   meshes.forEach(m => {
-    console.log("Dibujando malla id:", m.id);
     drawMesh(m);
   });
 
+  // Dibujar BBox local si hay una malla seleccionada
   if (selectedMeshId != null && bboxColor) {
-    console.log("Intentando dibujar BBox para malla:", selectedMeshId);
     const mesh = meshes.find(m => m.id === selectedMeshId);
     if (mesh) {
-      console.log("Malla encontrada para BBox:", mesh);
       drawBoundingBox(mesh, bboxColor);
-    } else {
-      console.warn("Malla no encontrada para BBox:", selectedMeshId);
     }
+  }
+
+  // Dibujar BBox global si está activa
+  if (showGlobalBBox && meshes.length > 0) {
+    const globalColor: [number, number, number] = globalBBoxColor || [0, 1, 0]; // Verde por defecto
+    drawGlobalBoundingBox(meshes, globalColor);
   }
 }
 
@@ -543,5 +552,206 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
   gl.drawArrays(gl.LINES, 0, 24); // 12 aristas * 2 vértices = 24 vértices
   
   // Vuelve al programa de renderizado normal
+  gl.useProgram(renderProgram);
+}
+
+// Función para calcular la bounding box global de todas las meshes
+export function computeGlobalBoundingBox(meshes: Mesh[]) {
+  if (meshes.length === 0) {
+    return {
+      min: [0, 0, 0],
+      max: [0, 0, 0]
+    };
+  }
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  meshes.forEach(mesh => {
+    const bbox = computeBoundingBox(mesh);
+    
+    // Aplicar transformaciones a la bbox
+    const transformedMin = applyMeshTransform(mesh, bbox.min);
+    const transformedMax = applyMeshTransform(mesh, bbox.max);
+    
+    minX = Math.min(minX, transformedMin[0], transformedMax[0]);
+    minY = Math.min(minY, transformedMin[1], transformedMax[1]);
+    minZ = Math.min(minZ, transformedMin[2], transformedMax[2]);
+    
+    maxX = Math.max(maxX, transformedMin[0], transformedMax[0]);
+    maxY = Math.max(maxY, transformedMin[1], transformedMax[1]);
+    maxZ = Math.max(maxZ, transformedMin[2], transformedMax[2]);
+  });
+
+  if (minX === Infinity) {
+    return {
+      min: [0, 0, 0],
+      max: [1, 1, 1]
+    };
+  }
+  
+  return {
+    min: [minX, minY, minZ],
+    max: [maxX, maxY, maxZ]
+  };
+}
+
+// Función auxiliar para aplicar transformaciones a un punto
+function applyMeshTransform(mesh: Mesh, point: [number, number, number]): [number, number, number] {
+  let x = point[0];
+  let y = point[1];
+  let z = point[2];
+  
+  // Aplicar centro (si existe)
+  if (mesh.center) {
+    x -= mesh.center[0];
+    y -= mesh.center[1];
+    z -= mesh.center[2];
+  }
+  
+  // Aplicar escala (si existe)
+  if (mesh.scale && mesh.scale !== 1) {
+    x *= mesh.scale;
+    y *= mesh.scale;
+    z *= mesh.scale;
+  }
+  
+  // Aplicar traslación (si existe)
+  if (mesh.translate) {
+    x += mesh.translate[0];
+    y += mesh.translate[1];
+    z += mesh.translate[2];
+  }
+  
+  return [x, y, z];
+}
+
+// Función para dibujar bounding box global
+export function drawGlobalBoundingBox(meshes: Mesh[], color: [number, number, number]) {
+  console.log("Dibujando BBox Global para", meshes.length, "meshes");
+  
+  if (!gl || !renderProgram) {
+    console.log("WebGL no está inicializado");
+    return;
+  }
+
+  // Calcular bounding box global
+  const bbox = computeGlobalBoundingBox(meshes);
+  let [minX, minY, minZ] = bbox.min;
+  let [maxX, maxY, maxZ] = bbox.max;
+
+  // Expandir ligeramente la caja
+  const sizeX = maxX - minX;
+  const sizeY = maxY - minY;
+  const sizeZ = maxZ - minZ;
+  const maxDim = Math.max(sizeX, sizeY, sizeZ, 1e-6);
+  const eps = maxDim * 0.002;
+  
+  // Crear vértices
+  const vertices = new Float32Array(72);
+  
+  // Ajustar coordenadas con epsilon
+  minX -= eps; minY -= eps; minZ -= eps;
+  maxX += eps; maxY += eps; maxZ += eps;
+  
+  // Llenar el array (mismo código que drawBoundingBox pero sin transformaciones)
+  let idx = 0;
+  
+  // Aristas en Z mínimo
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  
+  // Aristas en Z máximo
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  // Aristas verticales
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = minY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = maxX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+  
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = minZ;
+  vertices[idx++] = minX; vertices[idx++] = maxY; vertices[idx++] = maxZ;
+
+  // Usar programa de líneas
+  if (!lineProgram) {
+    const lineVsSource = `
+      attribute vec3 aPosition;
+      uniform mat4 uMVP;
+      void main() {
+        gl_Position = uMVP * vec4(aPosition, 1.0);
+      }
+    `;
+    
+    const lineFsSource = `
+      precision mediump float;
+      uniform vec3 uColor;
+      void main() {
+        gl_FragColor = vec4(uColor, 1.0);
+      }
+    `;
+    
+    try {
+      lineProgram = createProgram(lineVsSource, lineFsSource);
+    } catch (error) {
+      console.error("Error creando programa de líneas:", error);
+      return;
+    }
+  }
+  
+  if (!lineProgram) return;
+  
+  gl.useProgram(lineProgram);
+
+  const aPosition = gl.getAttribLocation(lineProgram, "aPosition");
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+  
+  if (aPosition >= 0) {
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const uColor = gl.getUniformLocation(lineProgram, "uColor");
+  if (uColor) {
+    gl.uniform3fv(uColor, new Float32Array(color));
+  }
+
+  // Matriz MVP simple (solo proyección, sin transformaciones de modelo)
+  const uMVP = gl.getUniformLocation(lineProgram, "uMVP");
+  if (uMVP) {
+    const projection = mat4.create();
+    mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
+    gl.uniformMatrix4fv(uMVP, false, projection);
+  }
+
+  // Dibujar aristas
+  gl.drawArrays(gl.LINES, 0, 24);
+  
+  // Volver al programa de renderizado normal
   gl.useProgram(renderProgram);
 }
