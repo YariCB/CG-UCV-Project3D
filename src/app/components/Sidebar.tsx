@@ -537,7 +537,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="input-row">
             <p className="selection-id">ID: {selectedMeshId}</p>
-            <label>Color (Kd)</label>
+            <label>Color Sub-malla</label>
             <div className="color-picker-relative-container">
               <div className="preview-group">
                 <button

@@ -79,10 +79,10 @@ const Canvas: React.FC<CanvasProps> = ({
     );
   }, [meshes, bgColor, bboxColor, bboxGlobalColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
 
-  // DRAG START - mousedown sobre sub-malla seleccionada
+  // DRAG START - mousedown sobre sub-malla seleccionada u objeto completo
   const handleMouseDown = useCallback((e: MouseEvent) => {
     const canvas = canvasRef.current;
-    if (!canvas || !selectedMeshId || !setMeshes) return;
+    if (!canvas || !setMeshes) return; // Eliminamos la verificación de selectedMeshId
 
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -92,16 +92,33 @@ const Canvas: React.FC<CanvasProps> = ({
     
     const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
 
-    // Determinar si estamos arrastrando el objeto completo o una submalla
+    // Si BBox global está activa, siempre arrastrar objeto completo
+    if (activeSettings.bbox) {
+      // Arrastrar objeto completo (siempre que haya meshes)
+      if (meshes.length === 0) return;
+      
+      isDraggingRef.current = true;
+      isDraggingObjectRef.current = true;
+      lastMouseXRef.current = e.clientX;
+      lastMouseYRef.current = e.clientY;
+      
+      // Usar profundidad promedio de todos los meshes
+      const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
+      initialDepthRef.current = totalZ / meshes.length;
+      
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+
+    // Si no hay BBox global activa, usar la lógica anterior
     const shouldDragObject = 
-      // Si BBox global está activa
-      activeSettings.bbox || 
-      // O si no hay submalla seleccionada
+      // Si no hay submalla seleccionada
       selectedMeshId === null || 
       // O si clickeamos fuera de la submalla seleccionada
       (pickedId !== selectedMeshId);
     
-    if (shouldDragObject) {
+    if (shouldDragObject && meshes.length > 0) {
       // Arrastrar objeto completo
       isDraggingRef.current = true;
       isDraggingObjectRef.current = true;
@@ -109,10 +126,8 @@ const Canvas: React.FC<CanvasProps> = ({
       lastMouseYRef.current = e.clientY;
       
       // Usar profundidad promedio de todos los meshes
-      if (meshes.length > 0) {
-        const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
-        initialDepthRef.current = totalZ / meshes.length;
-      }
+      const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
+      initialDepthRef.current = totalZ / meshes.length;
       
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
@@ -133,7 +148,6 @@ const Canvas: React.FC<CanvasProps> = ({
       e.preventDefault();
     }
   }, [meshes, bgColor, selectedMeshId, setMeshes, parseRgba, activeSettings]);
-    
 
   // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -221,11 +235,19 @@ const Canvas: React.FC<CanvasProps> = ({
       isDraggingObjectRef.current = false;
       const canvas = canvasRef.current;
       if (canvas) {
-        // Restaurar cursor según si hay selección
-        canvas.style.cursor = selectedMeshId ? 'grab' : 'default';
+        // Restaurar cursor según el contexto actual
+        if (activeSettings.bbox) {
+          canvas.style.cursor = 'move';
+        } else if (selectedMeshId) {
+          canvas.style.cursor = 'grab';
+        } else if (meshes.length > 0) {
+          canvas.style.cursor = 'move';
+        } else {
+          canvas.style.cursor = 'default';
+        }
       }
     }
-  }, [selectedMeshId]);
+  }, [selectedMeshId, activeSettings, meshes]);
 
   // Actualizar cursor según el contexto
   useEffect(() => {
@@ -237,14 +259,23 @@ const Canvas: React.FC<CanvasProps> = ({
       canvas.style.cursor = 'move';
     } else if (selectedMeshId) {
       canvas.style.cursor = 'grab';
+    } else if (meshes.length > 0) {
+      // Si hay objetos pero no hay submalla seleccionada, también permitir arrastre
+      canvas.style.cursor = 'move';
     } else {
       canvas.style.cursor = 'default';
     }
-  }, [selectedMeshId, activeSettings]);
+  }, [selectedMeshId, activeSettings, meshes]);
 
   const handleClick = useCallback((e: MouseEvent) => {
     // Ignorar click durante arrastre
     if (isDraggingRef.current) return;
+
+    // Si BBox global está activa, no hacer picking (solo arrastre)
+    if (activeSettings.bbox) {
+      console.log("BBox global activa - click ignorado para picking");
+      return;
+    }
 
     const canvas = canvasRef.current;
     if (!canvas || !setSelectedMeshId || !meshes.length) return;
@@ -279,7 +310,7 @@ const Canvas: React.FC<CanvasProps> = ({
         setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
       }
     }
-  }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba, setActiveSettings]);
+  }, [meshes, bgColor, selectedMeshId, setSelectedMeshId, toggleBBoxLocal, parseRgba, setActiveSettings, activeSettings, isDraggingRef]);
   
 
   useEffect(() => {
