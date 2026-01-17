@@ -11,6 +11,7 @@ interface CanvasProps {
   setMeshes?: React.Dispatch<React.SetStateAction<any[]>>;
   selectedMeshId?: number | null;
   bboxColor?: string;
+  bboxGlobalColor?: string;
   showLocalBBox?: boolean;
   toggleBBoxLocal?: () => void;
   activeSettings?: any;
@@ -26,6 +27,7 @@ const Canvas: React.FC<CanvasProps> = ({
   selectedMeshId,
   setMeshes,
   bboxColor,
+  bboxGlobalColor,
   showLocalBBox,
   toggleBBoxLocal,
   activeSettings = {},
@@ -61,18 +63,21 @@ const Canvas: React.FC<CanvasProps> = ({
     const bboxRgb = bboxColor ? parseRgba(bboxColor).slice(0, 3) as [number, number, number] : undefined;
     const localMeshId = showLocalBBox && selectedMeshId !== null ? selectedMeshId : undefined;
     
-    // Color para BBox global (rojo por defecto)
-    const globalBBoxColor = [1, 0, 0] as [number, number, number];
+    let globalBBoxRgb: [number, number, number] | undefined;
+    if (activeSettings.bbox) {
+      const globalColor = parseRgba(bboxGlobalColor || 'rgba(255,0,0,1)');
+      globalBBoxRgb = [globalColor[0], globalColor[1], globalColor[2]]; // Solo RGB
+    }
     
     redraw(
       meshes, 
       parseRgba(bgColor), 
       localMeshId, 
       bboxRgb,
-      activeSettings.bbox, // Mostrar BBox global si está activa
-      globalBBoxColor
+      activeSettings.bbox,
+      globalBBoxRgb
     );
-  }, [meshes, bgColor, bboxColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
+  }, [meshes, bgColor, bboxColor, bboxGlobalColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
 
   // DRAG START - mousedown sobre sub-malla seleccionada
   const handleMouseDown = useCallback((e: MouseEvent) => {

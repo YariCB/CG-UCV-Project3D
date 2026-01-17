@@ -17,6 +17,7 @@ const App: React.FC = () => {
 	// background default to black
 	const [bgColor, setBgColor] = useState<string>('rgba(0,0,0,1)');
 	const [bboxLocalColor, setBboxLocalColor] = useState<string>('rgba(255,255,0,1)');
+	const [bboxGlobalColor, setBboxGlobalColor] = useState<string>('rgba(255,0,0,1)');
 	const [meshes, setMeshes] = useState<any[]>([]);
 	const [selectedMeshId, setSelectedMeshId] = useState<number | null>(null);
 
@@ -35,15 +36,6 @@ const App: React.FC = () => {
 	setActiveSettings(prev => ({ 
 		...prev, 
 		bboxlocal: !prev.bboxlocal,
-		// bbox: prev.bboxlocal ? prev.bbox : false // Desactivar BBox global si se activa local
-	}));
-	}, []);
-
-	const toggleBBoxGlobal = useCallback(() => {
-	setActiveSettings(prev => ({ 
-		...prev, 
-		bbox: !prev.bbox,
-		bboxlocal: prev.bbox ? prev.bboxlocal : false // Desactivar BBox local si se activa global
 	}));
 	}, []);
 
@@ -66,6 +58,8 @@ const App: React.FC = () => {
 					setSelectedMeshId={setSelectedMeshId}
 					bboxLocalColor={bboxLocalColor}
   					setBboxLocalColor={setBboxLocalColor}
+					bboxGlobalColor={bboxGlobalColor}
+					setBboxGlobalColor={setBboxGlobalColor}
 				/>
 				<Canvas
 					bgColor={bgColor}
@@ -76,6 +70,7 @@ const App: React.FC = () => {
 					setMeshes={setMeshes}
 					selectedMeshId={selectedMeshId}
 					bboxColor={activeSettings.bboxlocal && selectedMeshId !== null ? bboxLocalColor : undefined}
+					bboxGlobalColor={bboxGlobalColor}
 					showLocalBBox={activeSettings.bboxlocal}
 					toggleBBoxLocal={() => setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }))}
 					activeSettings={activeSettings}

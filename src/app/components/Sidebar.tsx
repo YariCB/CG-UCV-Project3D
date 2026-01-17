@@ -16,6 +16,8 @@ interface SidebarProps {
   setSelectedMeshId?: (id: number | null) => void;
   bboxLocalColor: string;
   setBboxLocalColor: React.Dispatch<React.SetStateAction<string>>;
+  bboxGlobalColor: string;
+  setBboxGlobalColor: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -28,7 +30,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedMeshId,
   setSelectedMeshId,
   bboxLocalColor,
-  setBboxLocalColor
+  setBboxLocalColor,
+  bboxGlobalColor,
+  setBboxGlobalColor,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -436,17 +440,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="tool-button-wrapper">
             <button 
-              className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
-              title = {buttonLabels.bbox}
-              onClick={() => toggleSetting('bbox')}
-            >
-              <ion-icon name="cube-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.bbox}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
               className={`sidebar-button center-btn`} 
               title = {buttonLabels.center}
               onClick={() => toggleSetting('center')}
@@ -494,6 +487,43 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
               }} />
             </div>
+
+            <div className="bbox-global-group">
+              <div className="tool-button-wrapper">
+                <button 
+                  className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
+                  title = {buttonLabels.bbox}
+                  onClick={() => toggleSetting('bbox')}
+                >
+                  <ion-icon name="cube-outline"></ion-icon>
+                </button>
+                <span className="tool-button-label">{buttonLabels.bbox}</span>
+              </div>
+
+              {/* Selector de color para BBox Global */}
+                <div className="color-picker-relative-container">
+                  <div className="preview-group">
+                    <div className="tool-button-wrapper">
+                      <button 
+                        className="color-preview-button sidebar-button" 
+                        onClick={() => setOpenPicker(openPicker === 'bboxGlobal' ? null : 'bboxGlobal')}
+                      >
+                        <div className="color-swatch" style={{background: bboxGlobalColor}} />
+                      </button>
+                      <span className="tool-button-label">Global BBox Color</span>
+                    </div>
+                    
+                    {openPicker === 'bboxGlobal' && (
+                      <div className="color-tooltip bbox-tooltip-adjust">
+                        <ColorWheel currentColor={bboxGlobalColor} size={140} onColorSelect={(c) => setBboxGlobalColor(c)} />
+                        <RgbInputs color={bboxGlobalColor} onColorChange={(c) => setBboxGlobalColor(c)} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+            </div>
+            
+
         </div>
 
       </div>

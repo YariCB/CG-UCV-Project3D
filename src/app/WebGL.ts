@@ -331,7 +331,7 @@ export function redraw(
 
   // Dibujar BBox global si está activa
   if (showGlobalBBox && meshes.length > 0) {
-    const globalColor: [number, number, number] = globalBBoxColor || [0, 1, 0]; // Verde por defecto
+    const globalColor: [number, number, number] = globalBBoxColor || [1, 0, 0];
     drawGlobalBoundingBox(meshes, globalColor);
   }
 }

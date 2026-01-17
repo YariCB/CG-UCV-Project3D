@@ -327,14 +327,18 @@
 }
 
 /* Grupo BBox local (botón + color) */
-.bbox-local-group {
+.bbox-local-group, .bbox-global-group {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
 .bbox-local-group .color-preview-button {
-  margin-top: 0;
+  margin-top: -2px !important;
+}
+
+.bbox-global-group .color-preview-button, .bbox-global-group .sidebar-button {
+  margin-top: 5px;
 }
 
 /* Wrapper para botón eliminar */
