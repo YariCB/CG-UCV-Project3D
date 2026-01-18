@@ -152,9 +152,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     try {
       const [gx, gy, gz] = getGlobalRotationDegrees();
-      setRotateX(String(Math.round(gx)));
-      setRotateY(String(Math.round(gy)));
-      setRotateZ(String(Math.round(gz)));
+      setRotateX(String(normalizeAngle(Math.round(gx))));
+      setRotateY(String(normalizeAngle(Math.round(gy))));
+      setRotateZ(String(normalizeAngle(Math.round(gz))));
     } catch (err) {
       // no bloquear si algo falla
     }
@@ -373,6 +373,30 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     );
+  };
+
+  // Función para que cualquier ángulo (ej: -10 o 370) se muestre siempre entre 0 y 360
+  const normalizeAngle = (angle: number) => {
+    return ((angle % 360) + 360) % 360;
+  };
+
+  // Manejador para usar las flechas del teclado (Arriba/Abajo)
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentValue: string,
+    setter: (v: string) => void,
+    onUpdate: (num: number) => void
+  ) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1; // Si presionas Shift, aumenta/disminuye de 10 en 10
+      const currentNum = parseFloat(currentValue) || 0;
+      const nextNum = e.key === 'ArrowUp' ? currentNum + step : currentNum - step;
+      
+      // Aplicamos el cambio
+      setter(nextNum.toString());
+      onUpdate(nextNum);
+    }
   };
 
   return (
