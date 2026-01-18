@@ -45,6 +45,7 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // Rotación global con botón derecho
   const isRotatingRef = useRef(false);
+  const [isRotating, setIsRotating] = useState(false);
 
   // Profundidad inicial del objeto
   const initialDepthRef = useRef<number>(-3); 
@@ -87,7 +88,7 @@ const Canvas: React.FC<CanvasProps> = ({
   const handleMouseDown = useCallback((e: MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas || !setMeshes) return; // Eliminamos la verificación de selectedMeshId
-
+    
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
@@ -101,6 +102,8 @@ const Canvas: React.FC<CanvasProps> = ({
       if (meshes.length === 0) return;
       pushGlobalRotation();
       isRotatingRef.current = true;
+      setIsRotating(true);
+      document.body.classList.add('no-select');
       lastMouseXRef.current = e.clientX;
       lastMouseYRef.current = e.clientY;
       canvas.style.cursor = 'grabbing';
@@ -184,10 +187,11 @@ const Canvas: React.FC<CanvasProps> = ({
       // Rotación global basada en movimiento del ratón
       const deltaX = e.clientX - lastMouseXRef.current;
       const deltaY = e.clientY - lastMouseYRef.current;
+      const NORMALIZED_OBJECT_FACTOR = 0.1;
       const sens = getRotationSensitivity();
-      // Interpretar inputs como grados por 100px
-      const angDegY = (deltaX * sens[1]) / 100; // rotar alrededor de Y por movimiento horizontal
-      const angDegX = (deltaY * sens[0]) / 100; // rotar alrededor de X por movimiento vertical
+      
+      const angDegY = (deltaX * sens[1]) * NORMALIZED_OBJECT_FACTOR; // rotar alrededor de Y por movimiento horizontal
+      const angDegX = (deltaY * sens[0]) * NORMALIZED_OBJECT_FACTOR; // rotar alrededor de X por movimiento vertical
       const angRadX = angDegX * Math.PI / 180;
       const angRadY = angDegY * Math.PI / 180;
 
@@ -271,6 +275,11 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // DRAG END - mouseup
   const handleMouseUp = useCallback(() => {
+    if (isRotating) {
+      setIsRotating(false);
+      document.body.classList.remove('cursor-rotating');
+    }
+
     if (isRotatingRef.current) {
       isRotatingRef.current = false;
       isDraggingRef.current = false;
@@ -301,6 +310,15 @@ const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    if (isRotating) {
+      canvas.style.cursor = 'none'; // Ocultamos el default
+      canvas.classList.add('cursor-rotating');
+    } else {
+      canvas.classList.remove('cursor-rotating');
+      // Prioridad 2: Si hay algo seleccionado (mano) o default
+      canvas.style.cursor = selectedMeshId ? 'grab' : 'default';
+    }
     
     // Si BBox global está activa, mostrar cursor de movimiento para objeto completo
     if (activeSettings.bbox) {

@@ -37,7 +37,7 @@ export function applyDeltaGlobalQuat(delta: quat) {
 }
 
 // Sensibilidad de rotación (grados por 100px)
-let rotationSensitivity: [number, number, number] = [3, 3, 3];
+let rotationSensitivity: [number, number, number] = [6, 6, 6];
 export function setRotationSensitivity(x: number, y: number, z: number) {
   rotationSensitivity = [x, y, z];
 }
