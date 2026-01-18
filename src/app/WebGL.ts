@@ -1,4 +1,4 @@
-import { mat4 } from 'gl-matrix';
+import { mat4, vec4 } from 'gl-matrix';
 import { computeBoundingBox } from './lib/objLoader';
 
 let gl: WebGLRenderingContext | null = null;
@@ -529,28 +529,10 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
     gl.uniform3fv(uColor, new Float32Array(color));
   }
 
-  // Aplica las transformaciones
+  // Aplica las mismas transformaciones que se usan al renderizar (calcular matriz de modelo consistente)
   const uMVP = gl.getUniformLocation(lineProgram, "uMVP");
   if (uMVP) {
-    const model = mat4.create();
-    if (mesh.center && mesh.scale) {
-      // 1. Aplicar traslación
-      if (mesh.translate) {
-        const t = mesh.translate as [number, number, number];
-        mat4.translate(model, model, t);
-      }
-      
-      // 2. Escalar
-      if (typeof mesh.scale === 'number') {
-        mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
-      } else if (Array.isArray(mesh.scale) && mesh.scale.length === 3) {
-        mat4.scale(model, model, [mesh.scale[0], mesh.scale[1], mesh.scale[2]]);
-      }
-      
-      // 3. Centrar
-      mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
-    }
-    
+    const model = calculateModelMatrix(mesh);
     const projection = mat4.create();
     mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
     const mvp = mat4.create();
@@ -577,20 +559,31 @@ export function computeGlobalBoundingBox(meshes: Mesh[]) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
+  // Para cada mesh, transformamos las 8 esquinas de su bbox usando la misma
+  // matriz de modelo que se usa en el render (calculateModelMatrix).
   meshes.forEach(mesh => {
     const bbox = computeBoundingBox(mesh);
-    
-    // Aplicar transformaciones a la bbox
-    const transformedMin = applyMeshTransform(mesh, bbox.min);
-    const transformedMax = applyMeshTransform(mesh, bbox.max);
-    
-    minX = Math.min(minX, transformedMin[0], transformedMax[0]);
-    minY = Math.min(minY, transformedMin[1], transformedMax[1]);
-    minZ = Math.min(minZ, transformedMin[2], transformedMax[2]);
-    
-    maxX = Math.max(maxX, transformedMin[0], transformedMax[0]);
-    maxY = Math.max(maxY, transformedMin[1], transformedMax[1]);
-    maxZ = Math.max(maxZ, transformedMin[2], transformedMax[2]);
+    const [mx0, my0, mz0] = bbox.min;
+    const [mx1, my1, mz1] = bbox.max;
+
+    const corners = [
+      [mx0, my0, mz0], [mx1, my0, mz0], [mx1, my1, mz0], [mx0, my1, mz0],
+      [mx0, my0, mz1], [mx1, my0, mz1], [mx1, my1, mz1], [mx0, my1, mz1]
+    ];
+
+    const model = calculateModelMatrix(mesh);
+    const tmp = vec4.create();
+
+    for (const c of corners) {
+      vec4.transformMat4(tmp, vec4.fromValues(c[0], c[1], c[2], 1), model);
+      const tx = tmp[0], ty = tmp[1], tz = tmp[2];
+      minX = Math.min(minX, tx);
+      minY = Math.min(minY, ty);
+      minZ = Math.min(minZ, tz);
+      maxX = Math.max(maxX, tx);
+      maxY = Math.max(maxY, ty);
+      maxZ = Math.max(maxZ, tz);
+    }
   });
 
   if (minX === Infinity) {
@@ -599,7 +592,7 @@ export function computeGlobalBoundingBox(meshes: Mesh[]) {
       max: [1, 1, 1]
     };
   }
-  
+
   return {
     min: [minX, minY, minZ],
     max: [maxX, maxY, maxZ]
