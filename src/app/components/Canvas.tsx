@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { quat } from 'gl-matrix';
-import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity } from '../WebGL';
+import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -47,6 +47,17 @@ const Canvas: React.FC<CanvasProps> = ({
   const isRotatingRef = useRef(false);
   const [isRotating, setIsRotating] = useState(false);
 
+  // Cámara estilo FPS: posición, orientación (yaw/pitch), vectores
+  const cameraPosRef = useRef<[number, number, number]>([0, 0, 0]);
+  const yawRef = useRef(-90); // mirar hacia -Z por defecto
+  const pitchRef = useRef(0);
+  const frontRef = useRef<[number, number, number]>([0, 0, -1]);
+  const upRef = useRef<[number, number, number]>([0, 1, 0]);
+  const lookLastXRef = useRef<number | null>(null);
+  const lookLastYRef = useRef<number | null>(null);
+  const moveSpeedRef = useRef(0.2);
+  const mouseSensitivityRef = useRef(0.15); // degrees per pixel
+
   // Profundidad inicial del objeto
   const initialDepthRef = useRef<number>(-3); 
 
@@ -82,6 +93,8 @@ const Canvas: React.FC<CanvasProps> = ({
       activeSettings.bbox,
       globalBBoxRgb
     );
+    // Asegurar que la cámara actual se propague (por si cambió fuera)
+    setCamera(cameraPosRef.current, frontRef.current, upRef.current);
   }, [meshes, bgColor, bboxColor, bboxGlobalColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
 
   // DRAG START - mousedown sobre sub-malla seleccionada u objeto completo
@@ -170,6 +183,45 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    // Primero: si el usuario está en modo 'look' con Alt (o Ctrl) y no está arrastrando/rotando objetos,
+    // usar el movimiento del ratón para rotar la cámara.
+    if (!isDraggingRef.current && !isRotatingRef.current && (e.altKey || e.ctrlKey)) {
+      // Look-around
+      const lx = lookLastXRef.current;
+      const ly = lookLastYRef.current;
+      if (lx === null || ly === null) {
+        lookLastXRef.current = e.clientX;
+        lookLastYRef.current = e.clientY;
+      } else {
+        const dx = e.clientX - lx;
+        const dy = e.clientY - ly;
+        lookLastXRef.current = e.clientX;
+        lookLastYRef.current = e.clientY;
+
+        const yaw = yawRef.current + dx * mouseSensitivityRef.current;
+        let pitch = pitchRef.current + dy * mouseSensitivityRef.current * -1; // invertir Y para control tipo FPS
+        if (pitch > 89) pitch = 89;
+        if (pitch < -89) pitch = -89;
+        yawRef.current = yaw;
+        pitchRef.current = pitch;
+
+        // Recalcular front
+        const yawRad = yawRef.current * Math.PI / 180;
+        const pitchRad = pitchRef.current * Math.PI / 180;
+        const fx = Math.cos(yawRad) * Math.cos(pitchRad);
+        const fy = Math.sin(pitchRad);
+        const fz = Math.sin(yawRad) * Math.cos(pitchRad);
+        // normalizar
+        const len = Math.sqrt(fx*fx + fy*fy + fz*fz) || 1;
+        frontRef.current = [fx/len, fy/len, fz/len];
+        // Propagar a WebGL y redibujar
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+        setDragCounter(prev => prev + 1);
+      }
+      return;
+    }
+
+    // Si no estamos en modo 'look', proceder con lógica existente de arrastre
     if ((!isDraggingRef.current && !isRotatingRef.current) || !setMeshes) return;
 
     const canvas = canvasRef.current;
@@ -396,7 +448,59 @@ const Canvas: React.FC<CanvasProps> = ({
     setDepthTest(!!depthEnabled);
     setCulling(!!cullingEnabled);
     
+    // Inicializar cámara por defecto
+    frontRef.current = [0, 0, -1];
+    upRef.current = [0, 1, 0];
+    cameraPosRef.current = [0, 0, 0];
+    setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+    
     handleRedraw();
+  }, []);
+
+  // Teclado: mover adelante/atrás y rotar izquierda/derecha
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp') {
+        const pos = cameraPosRef.current;
+        const f = frontRef.current;
+        const speed = moveSpeedRef.current;
+        cameraPosRef.current = [pos[0] + f[0]*speed, pos[1] + f[1]*speed, pos[2] + f[2]*speed];
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+        setDragCounter(c => c + 1);
+      } else if (e.key === 'ArrowDown') {
+        const pos = cameraPosRef.current;
+        const f = frontRef.current;
+        const speed = moveSpeedRef.current;
+        cameraPosRef.current = [pos[0] - f[0]*speed, pos[1] - f[1]*speed, pos[2] - f[2]*speed];
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+        setDragCounter(c => c + 1);
+      } else if (e.key === 'ArrowRight') {
+        yawRef.current -= 5;
+        const yawRad = yawRef.current * Math.PI / 180;
+        const pitchRad = pitchRef.current * Math.PI / 180;
+        const fx = Math.cos(yawRad) * Math.cos(pitchRad);
+        const fy = Math.sin(pitchRad);
+        const fz = Math.sin(yawRad) * Math.cos(pitchRad);
+        const len = Math.sqrt(fx*fx + fy*fy + fz*fz) || 1;
+        frontRef.current = [fx/len, fy/len, fz/len];
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+        setDragCounter(c => c + 1);
+      } else if (e.key === 'ArrowLeft') {
+        yawRef.current += 5;
+        const yawRad = yawRef.current * Math.PI / 180;
+        const pitchRad = pitchRef.current * Math.PI / 180;
+        const fx = Math.cos(yawRad) * Math.cos(pitchRad);
+        const fy = Math.sin(pitchRad);
+        const fz = Math.sin(yawRad) * Math.cos(pitchRad);
+        const len = Math.sqrt(fx*fx + fy*fy + fz*fz) || 1;
+        frontRef.current = [fx/len, fy/len, fz/len];
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+        setDragCounter(c => c + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Resize
@@ -454,6 +558,18 @@ const Canvas: React.FC<CanvasProps> = ({
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [handleMouseDown, handleMouseMove, handleMouseUp, selectedMeshId]);
+
+  // Limpiar estado de 'look' cuando se suelta Alt/Ctrl
+  useEffect(() => {
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt' || e.key === 'Control') {
+        lookLastXRef.current = null;
+        lookLastYRef.current = null;
+      }
+    };
+    window.addEventListener('keyup', onKeyUp);
+    return () => window.removeEventListener('keyup', onKeyUp);
+  }, []);
 
   useEffect(() => {
     handleRedraw();

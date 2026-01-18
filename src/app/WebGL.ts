@@ -1,4 +1,4 @@
-import { mat4, vec4, quat } from 'gl-matrix';
+import { mat4, vec4, vec3, quat } from 'gl-matrix';
 import { computeBoundingBox } from './lib/objLoader';
 
 let gl: WebGLRenderingContext | null = null;
@@ -11,6 +11,21 @@ let globalQuat = quat.create();
 let globalQuatStack: Float32Array[] = [];
 // Centro global (actualizado en redraw)
 let globalCenter: [number, number, number] = [0, 0, -3];
+
+// Cámara (por defecto en origen mirando -Z)
+let cameraPos: [number, number, number] = [0, 0, 0];
+let cameraFront: [number, number, number] = [0, 0, -1];
+let cameraUp: [number, number, number] = [0, 1, 0];
+
+export function setCamera(pos: [number, number, number], front: [number, number, number], up: [number, number, number]) {
+  cameraPos = [pos[0], pos[1], pos[2]];
+  cameraFront = [front[0], front[1], front[2]];
+  cameraUp = [up[0], up[1], up[2]];
+}
+
+export function getCamera() {
+  return { pos: cameraPos, front: cameraFront, up: cameraUp };
+}
 
 export function pushGlobalRotation() {
   globalQuatStack.push(quat.clone(globalQuat));
@@ -304,11 +319,21 @@ function applyMVP(program: WebGLProgram, mesh: Mesh) {
   mat4.multiply(globalTransform, globalTransform, rotMat);
   mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
 
-  // MVP = projection * globalTransform * model
+  // View (usar cámara si está disponible)
+  const view = mat4.create();
+  const eye = cameraPos;
+  const center = vec3.create();
+  vec3.set(center, cameraPos[0] + cameraFront[0], cameraPos[1] + cameraFront[1], cameraPos[2] + cameraFront[2]);
+  const up = cameraUp;
+  mat4.lookAt(view, eye as any, center as any, up as any);
+
+  // MVP = projection * view * globalTransform * model
   const temp = mat4.create();
   mat4.multiply(temp, globalTransform, model);
+  const tmp2 = mat4.create();
+  mat4.multiply(tmp2, view, temp);
   const mvp = mat4.create();
-  mat4.multiply(mvp, projection, temp);
+  mat4.multiply(mvp, projection, tmp2);
 
   const uMVP = gl!.getUniformLocation(program, "uMVP");
   gl!.uniformMatrix4fv(uMVP, false, mvp);
@@ -524,11 +549,21 @@ function getFullMVP(mesh: Mesh): mat4 {
   mat4.multiply(globalTransform, globalTransform, rotMat);
   mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
   
-  // MVP = projection * globalTransform * model
+  // View (usar cámara)
+  const view = mat4.create();
+  const eye = cameraPos;
+  const center = vec3.create();
+  vec3.set(center, cameraPos[0] + cameraFront[0], cameraPos[1] + cameraFront[1], cameraPos[2] + cameraFront[2]);
+  const up = cameraUp;
+  mat4.lookAt(view, eye as any, center as any, up as any);
+
+  // MVP = projection * view * globalTransform * model
   const temp = mat4.create();
   mat4.multiply(temp, globalTransform, model);
+  const tmp2 = mat4.create();
+  mat4.multiply(tmp2, view, temp);
   const mvp = mat4.create();
-  mat4.multiply(mvp, projection, temp);
+  mat4.multiply(mvp, projection, tmp2);
   
   return mvp;
 }
