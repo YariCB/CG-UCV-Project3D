@@ -48,9 +48,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [kdColor, setKdColor] = useState<string>('rgba(161,145,255,1)');
   
   // Estados para inputs de traslación
-  const [translateX, setTranslateX] = useState<string>('0');
-  const [translateY, setTranslateY] = useState<string>('0');
-  const [translateZ, setTranslateZ] = useState<string>('0');
+  // Local: traslación de la sub-malla seleccionada
+  const [translateLocalX, setTranslateLocalX] = useState<string>('0');
+  const [translateLocalY, setTranslateLocalY] = useState<string>('0');
+  const [translateLocalZ, setTranslateLocalZ] = useState<string>('0');
+
+  // Global: traslación del objeto completo
+  const [translateGlobalX, setTranslateGlobalX] = useState<string>('0');
+  const [translateGlobalY, setTranslateGlobalY] = useState<string>('0');
+  const [translateGlobalZ, setTranslateGlobalZ] = useState<string>('0');
 
   // Estados para inputs de escala
   const [scaleX, setScaleX] = useState<string>('1');
@@ -96,14 +102,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       setActiveSettings((prev: any) => ({ ...prev, bbox: false }));
     }
     
-    // sync translate inputs
+    // sync translate inputs for the selected sub-mesh (local translation)
     const mesh2 = meshes.find(m => m.id === selectedMeshId);
     if (mesh2 && mesh2.translate) {
-      setTranslateX(String(mesh2.translate[0] || 0));
-      setTranslateY(String(mesh2.translate[1] || 0));
-      setTranslateZ(String(mesh2.translate[2] || 0));
+      setTranslateLocalX(String(mesh2.translate[0] || 0));
+      setTranslateLocalY(String(mesh2.translate[1] || 0));
+      setTranslateLocalZ(String(mesh2.translate[2] || 0));
     } else {
-      setTranslateX('0'); setTranslateY('0'); setTranslateZ('0');
+      setTranslateLocalX('0'); setTranslateLocalY('0'); setTranslateLocalZ('0');
     }
 
     // sync scale inputs
@@ -124,6 +130,18 @@ const Sidebar: React.FC<SidebarProps> = ({
       setScaleX('1'); setScaleY('1'); setScaleZ('1');
     }
   }, [selectedMeshId, meshes]);
+
+  // Mantener los inputs globales sincronizados con las mallas (usar la primera malla como referencia)
+  useEffect(() => {
+    if (!meshes || meshes.length === 0) {
+      setTranslateGlobalX('0'); setTranslateGlobalY('0'); setTranslateGlobalZ('0');
+      return;
+    }
+    const t = meshes[0].translate || [0, 0, 0];
+    setTranslateGlobalX(String(t[0] || 0));
+    setTranslateGlobalY(String(t[1] || 0));
+    setTranslateGlobalZ(String(t[2] || 0));
+  }, [meshes]);
 
   const toggleSetting = (key: string) => {
     setActiveSettings((prev: any) => {
@@ -495,20 +513,20 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="transform-group">
             <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
             <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" value={translateX} onChange={(e) => {
-                const v = e.target.value; setTranslateX(v);
+              <input type="number" placeholder="X" step="0.1" value={translateGlobalX} onChange={(e) => {
+                const v = e.target.value; setTranslateGlobalX(v);
                 const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
+                setMeshes(prev => prev.map(m => ({ ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] })));
               }} />
-              <input type="number" placeholder="Y" step="0.1" value={translateY} onChange={(e) => {
-                const v = e.target.value; setTranslateY(v);
+              <input type="number" placeholder="Y" step="0.1" value={translateGlobalY} onChange={(e) => {
+                const v = e.target.value; setTranslateGlobalY(v);
                 const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
+                setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] })));
               }} />
-              <input type="number" placeholder="Z" step="0.1" value={translateZ} onChange={(e) => {
-                const v = e.target.value; setTranslateZ(v);
+              <input type="number" placeholder="Z" step="0.1" value={translateGlobalZ} onChange={(e) => {
+                const v = e.target.value; setTranslateGlobalZ(v);
                 const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
+                setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] })));
               }} />
             </div>
 
@@ -638,18 +656,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="transform-group">
             <label className="label-small">Traslación de la Sub-Malla (X, Y, Z)</label>
             <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" value={translateX} onChange={(e) => {
-                const v = e.target.value; setTranslateX(v);
+              <input type="number" placeholder="X" step="0.1" value={translateLocalX} onChange={(e) => {
+                const v = e.target.value; setTranslateLocalX(v);
                 const num = parseFloat(v) || 0;
                 setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
               }} />
-              <input type="number" placeholder="Y" step="0.1" value={translateY} onChange={(e) => {
-                const v = e.target.value; setTranslateY(v);
+              <input type="number" placeholder="Y" step="0.1" value={translateLocalY} onChange={(e) => {
+                const v = e.target.value; setTranslateLocalY(v);
                 const num = parseFloat(v) || 0;
                 setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
               }} />
-              <input type="number" placeholder="Z" step="0.1" value={translateZ} onChange={(e) => {
-                const v = e.target.value; setTranslateZ(v);
+              <input type="number" placeholder="Z" step="0.1" value={translateLocalZ} onChange={(e) => {
+                const v = e.target.value; setTranslateLocalZ(v);
                 const num = parseFloat(v) || 0;
                 setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
               }} />
