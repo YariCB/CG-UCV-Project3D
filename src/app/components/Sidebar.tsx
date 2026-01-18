@@ -737,7 +737,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-separator" />
 
       {/* SECCIÓN 4: SUB-MALLA SELECCIONADA (Solo si hay selección vía Picking) */}
-      {selectedMeshId !== null && (
+      {selectedMeshId !== null && !activeSettings.bbox && (
         <div className="sidebar-section selection-box">
           <h3 className="section-title">Sub-malla Seleccionada</h3>
 
