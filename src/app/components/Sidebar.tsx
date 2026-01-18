@@ -2,8 +2,23 @@ import React, { useRef, useState, useEffect } from 'react';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 import ConfirmationModal from './ConfirmationModal';
-import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
-import { setDepthTest, setCulling, undoGlobalRotation, resetGlobalRotation, getGlobalRotationDegrees, setGlobalRotationDegrees } from '../WebGL';
+import {
+  parseOBJ,
+  parseMTL, 
+  assignMaterials, 
+  normalizeOBJ, 
+  Material
+} from '../lib/objLoader';
+import {
+  setDepthTest,
+  setCulling,
+  undoGlobalRotation, 
+  resetGlobalRotation,
+  getGlobalRotationDegrees,
+  setGlobalRotationDegrees,
+  centerAndNormalizeObject,
+  resetView
+} from '../WebGL';
 
 interface SidebarProps { 
   bgColor: string; 
@@ -79,6 +94,49 @@ const Sidebar: React.FC<SidebarProps> = ({
     center: 'Centrar Objeto'
   };
   const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
+
+  // Centrar objeto
+
+  const handleCenterObject = () => {
+    if (meshes.length === 0) return;
+    
+    // 1. Resetear rotaciones
+    resetView();
+    setRotateX('0');
+    setRotateY('0');
+    setRotateZ('0');
+    
+    // 2. Poner TODAS las submallas en EXACTAMENTE la misma posición (0,0,-3)
+    const centeredMeshes = meshes.map(mesh => ({
+      ...mesh,
+      translate: [0, 0, -3] as [number, number, number], // ¡TODAS IGUALES!
+      scale: 1,
+      center: [0, 0, 0] as [number, number, number],
+    }));
+    
+    setMeshes(centeredMeshes);
+    
+    // 3. Resetear todos los inputs
+    setTranslateGlobalX('0');
+    setTranslateGlobalY('0');
+    setTranslateGlobalZ('-3');
+    setScaleX('1');
+    setScaleY('1');
+    setScaleZ('1');
+    setTranslateLocalX('0');
+    setTranslateLocalY('0');
+    setTranslateLocalZ('0');
+    
+    // 4. Deseleccionar
+    if (setSelectedMeshId) setSelectedMeshId(null);
+    
+    // 5. Desactivar BBox
+    setActiveSettings((prev: any) => ({ 
+      ...prev, 
+      bboxlocal: false,
+      bbox: false 
+    }));
+  };
 
   // Sincronizar selectedMeshId -> mostrar color actual
   const prevSelectedMeshIdRef = useRef<number | null>(null);
@@ -523,9 +581,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="tool-button-wrapper">
             <button 
-              className={`sidebar-button center-btn`} 
-              title = {buttonLabels.center}
-              onClick={() => toggleSetting('center')}
+              className="sidebar-button center-btn" 
+              title= {buttonLabels.center}
+              onClick={handleCenterObject}
             >
               <ion-icon name="contract-outline"></ion-icon>
             </button>

@@ -894,3 +894,146 @@ export function drawGlobalBoundingBox(meshes: Mesh[], color: [number, number, nu
   // Volver al programa de renderizado normal
   gl.useProgram(renderProgram);
 }
+
+// Centrado del Objeto
+
+// Función para calcular el centro y tamaño del bounding box global transformado
+export function computeTransformedBoundingBox(meshes: Mesh[]): {
+  center: [number, number, number];
+  size: [number, number, number];
+  min: [number, number, number];
+  max: [number, number, number];
+} {
+  if (meshes.length === 0) {
+    return {
+      center: [0, 0, 0],
+      size: [1, 1, 1],
+      min: [-0.5, -0.5, -0.5],
+      max: [0.5, 0.5, 0.5]
+    };
+  }
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  // Transformar cada vértice de cada mesh con sus transformaciones actuales
+  meshes.forEach(mesh => {
+    const model = calculateModelMatrix(mesh);
+    
+    // Calcular bounding box local del mesh
+    const localBBox = computeBoundingBox(mesh);
+    const [lx0, ly0, lz0] = localBBox.min;
+    const [lx1, ly1, lz1] = localBBox.max;
+    
+    // Esquinas de la bounding box local
+    const corners = [
+      [lx0, ly0, lz0], [lx1, ly0, lz0], [lx1, ly1, lz0], [lx0, ly1, lz0],
+      [lx0, ly0, lz1], [lx1, ly0, lz1], [lx1, ly1, lz1], [lx0, ly1, lz1]
+    ];
+    
+    // Transformar cada esquina y expandir la bbox global
+    const tmp = vec4.create();
+    for (const c of corners) {
+      vec4.transformMat4(tmp, vec4.fromValues(c[0], c[1], c[2], 1), model);
+      const tx = tmp[0], ty = tmp[1], tz = tmp[2];
+      minX = Math.min(minX, tx);
+      minY = Math.min(minY, ty);
+      minZ = Math.min(minZ, tz);
+      maxX = Math.max(maxX, tx);
+      maxY = Math.max(maxY, ty);
+      maxZ = Math.max(maxZ, tz);
+    }
+  });
+
+  if (minX === Infinity) {
+    return {
+      center: [0, 0, 0],
+      size: [1, 1, 1],
+      min: [-0.5, -0.5, -0.5],
+      max: [0.5, 0.5, 0.5]
+    };
+  }
+
+  const center: [number, number, number] = [
+    (minX + maxX) / 2,
+    (minY + maxY) / 2,
+    (minZ + maxZ) / 2
+  ];
+  
+  const size: [number, number, number] = [
+    maxX - minX,
+    maxY - minY,
+    maxZ - minZ
+  ];
+
+  return { center, size, min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+}
+
+// Función para centrar y normalizar el objeto
+export function centerAndNormalizeObject(meshes: Mesh[]): Mesh[] {
+  if (meshes.length === 0) return meshes;
+  
+  // 1. Calcular bounding box global transformada
+  const bbox = computeTransformedBoundingBox(meshes);
+  console.log("BBox antes de centrar:", bbox);
+  
+  // 2. Calcular factor de escala para cubo unitario
+  // Encontrar la dimensión más grande
+  const maxSize = Math.max(bbox.size[0], bbox.size[1], bbox.size[2], 0.0001);
+  const scaleFactor = 1.0 / maxSize; // Para que quepa en cubo de 1 unidad
+  
+  // 3. Para cada mesh, aplicar transformaciones inversas y nuevas
+  return meshes.map(mesh => {
+    // Obtener transformación actual del mesh
+    const currentTranslate = mesh.translate || [0, 0, 0];
+    const currentScale = mesh.scale || 1;
+    const currentCenter = mesh.center || [0, 0, 0];
+    
+    // Calcular nueva traslación:
+    // 1. Primero, centrar el objeto (mover el centro a 0,0,0)
+    // 2. Luego, escalar al cubo unitario
+    // 3. Finalmente, mover a z = -3
+    
+    // Centro actual del mesh (considerando su transformación)
+    const meshCenter = [
+      currentTranslate[0] - currentCenter[0] * (typeof currentScale === 'number' ? currentScale : 1),
+      currentTranslate[1] - currentCenter[1] * (typeof currentScale === 'number' ? currentScale : 1),
+      currentTranslate[2] - currentCenter[2] * (typeof currentScale === 'number' ? currentScale : 1)
+    ];
+    
+    // Calcular nueva posición relativa al centro global
+    const relativeToGlobalCenter = [
+      meshCenter[0] - bbox.center[0],
+      meshCenter[1] - bbox.center[1],
+      meshCenter[2] - bbox.center[2]
+    ];
+    
+    // Aplicar escala al cubo unitario
+    const scaledRelative = [
+      relativeToGlobalCenter[0] * scaleFactor,
+      relativeToGlobalCenter[1] * scaleFactor,
+      relativeToGlobalCenter[2] * scaleFactor
+    ];
+    
+    const finalPosition: [number, number, number] = [
+      scaledRelative[0],
+      scaledRelative[1],
+      -3 
+    ];
+    
+    return {
+      ...mesh,
+      center: currentCenter,
+      scale: Array.isArray(currentScale) 
+        ? [currentScale[0] * scaleFactor, currentScale[1] * scaleFactor, currentScale[2] * scaleFactor]
+        : currentScale * scaleFactor,
+      translate: finalPosition
+    };
+  });
+}
+
+// Función para resetear rotaciones
+export function resetView() {
+  resetGlobalRotation();
+  globalCenter = [0, 0, -3];
+}
