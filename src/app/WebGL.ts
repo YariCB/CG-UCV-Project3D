@@ -37,12 +37,53 @@ export function applyDeltaGlobalQuat(delta: quat) {
 }
 
 // Sensibilidad de rotación (grados por 100px)
-let rotationSensitivity: [number, number, number] = [1, 1, 1];
+// Sensibilidad por defecto (grados por 100px). Aumentada para respuesta más fluida.
+let rotationSensitivity: [number, number, number] = [3, 3, 3];
 export function setRotationSensitivity(x: number, y: number, z: number) {
   rotationSensitivity = [x, y, z];
 }
 export function getRotationSensitivity() {
   return rotationSensitivity;
+}
+
+// Convertir quaternion global a ángulos Euler (grados) - orden X (roll), Y (pitch), Z (yaw)
+export function getGlobalRotationDegrees(): [number, number, number] {
+  const x = globalQuat[0], y = globalQuat[1], z = globalQuat[2], w = globalQuat[3];
+  // roll (x-axis rotation)
+  const sinr_cosp = 2 * (w * x + y * z);
+  const cosr_cosp = 1 - 2 * (x * x + y * y);
+  const roll = Math.atan2(sinr_cosp, cosr_cosp);
+
+  // pitch (y-axis rotation)
+  const sinp = 2 * (w * y - z * x);
+  let pitch: number;
+  if (Math.abs(sinp) >= 1) pitch = Math.sign(sinp) * Math.PI / 2;
+  else pitch = Math.asin(sinp);
+
+  // yaw (z-axis rotation)
+  const siny_cosp = 2 * (w * z + x * y);
+  const cosy_cosp = 1 - 2 * (y * y + z * z);
+  const yaw = Math.atan2(siny_cosp, cosy_cosp);
+
+  // Convertir a grados
+  return [roll * 180 / Math.PI, pitch * 180 / Math.PI, yaw * 180 / Math.PI];
+}
+
+// Establecer la rotación global a partir de ángulos Euler (grados). Orden: X then Y then Z.
+export function setGlobalRotationDegrees(rxDeg: number, ryDeg: number, rzDeg: number) {
+  const rx = rxDeg * Math.PI / 180;
+  const ry = ryDeg * Math.PI / 180;
+  const rz = rzDeg * Math.PI / 180;
+  const qx = quat.create();
+  const qy = quat.create();
+  const qz = quat.create();
+  quat.setAxisAngle(qx, [1, 0, 0], rx);
+  quat.setAxisAngle(qy, [0, 1, 0], ry);
+  quat.setAxisAngle(qz, [0, 0, 1], rz);
+  // q = qz * qy * qx  (apply X then Y then Z)
+  const tmp = quat.create();
+  quat.multiply(tmp, qy, qx);
+  quat.multiply(globalQuat, qz, tmp);
 }
 
 export function initWebGL(canvas: HTMLCanvasElement): boolean {

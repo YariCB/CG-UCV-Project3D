@@ -3,7 +3,7 @@ import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
-import { setDepthTest, setCulling, setRotationSensitivity, undoGlobalRotation, resetGlobalRotation } from '../WebGL';
+import { setDepthTest, setCulling, undoGlobalRotation, resetGlobalRotation, getGlobalRotationDegrees, setGlobalRotationDegrees } from '../WebGL';
 
 interface SidebarProps { 
   bgColor: string; 
@@ -146,6 +146,18 @@ const Sidebar: React.FC<SidebarProps> = ({
     setTranslateGlobalX(String(t[0] || 0));
     setTranslateGlobalY(String(t[1] || 0));
     setTranslateGlobalZ(String(t[2] || 0));
+  }, [meshes]);
+
+  // Sincronizar inputs de rotación global desde el quaternion en WebGL
+  useEffect(() => {
+    try {
+      const [gx, gy, gz] = getGlobalRotationDegrees();
+      setRotateX(String(Math.round(gx)));
+      setRotateY(String(Math.round(gy)));
+      setRotateZ(String(Math.round(gz)));
+    } catch (err) {
+      // no bloquear si algo falla
+    }
   }, [meshes]);
 
   const toggleSetting = (key: string) => {
@@ -623,13 +635,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                     const v = e.target.value;
                     setRotateX(v);
                     const num = parseFloat(v) || 0;
-                    setMeshes((prev) =>
-                      prev.map((mesh) => ({
-                        ...mesh,
-                        rotate: [num, mesh.rotate?.[1] ?? 0, mesh.rotate?.[2] ?? 0],
-                      }))
-                    );
-                    setRotationSensitivity(num, parseFloat(rotateY) || 0, parseFloat(rotateZ) || 0);
+                    // actualizar rotación global (Euler grados)
+                    setGlobalRotationDegrees(num, parseFloat(rotateY) || 0, parseFloat(rotateZ) || 0);
+                    // Forzar redraw
+                    setMeshes(prev => prev.map(m => ({ ...m })));
                   }}
                 />
                 <span className="xyz-unit">°</span>
@@ -645,13 +654,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     const v = e.target.value;
                     setRotateY(v);
                     const num = parseFloat(v) || 0;
-                      setMeshes((prev) =>
-                        prev.map((mesh) => ({
-                          ...mesh,
-                          rotate: [mesh.rotate?.[0] ?? 0, num, mesh.rotate?.[2] ?? 0],
-                        }))
-                      );
-                      setRotationSensitivity(parseFloat(rotateX) || 0, num, parseFloat(rotateZ) || 0);
+                    setGlobalRotationDegrees(parseFloat(rotateX) || 0, num, parseFloat(rotateZ) || 0);
+                    setMeshes(prev => prev.map(m => ({ ...m })));
                   }}
                 />
                 <span className="xyz-unit">°</span>
@@ -667,13 +671,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     const v = e.target.value;
                     setRotateZ(v);
                     const num = parseFloat(v) || 0;
-                      setMeshes((prev) =>
-                        prev.map((mesh) => ({
-                          ...mesh,
-                          rotate: [mesh.rotate?.[0] ?? 0, mesh.rotate?.[1] ?? 0, num],
-                        }))
-                      );
-                      setRotationSensitivity(parseFloat(rotateX) || 0, parseFloat(rotateY) || 0, num);
+                    setGlobalRotationDegrees(parseFloat(rotateX) || 0, parseFloat(rotateY) || 0, num);
+                    setMeshes(prev => prev.map(m => ({ ...m })));
                   }}
                 />
                 <span className="xyz-unit">°</span>
@@ -684,15 +683,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="sidebar-button rotation-reset-btn"
               title="Resetear rotación"
               onClick={() => {
+                // Resetear rotación global (cuaternión) y sincronizar inputs
+                resetGlobalRotation();
                 setRotateX('0');
                 setRotateY('0');
                 setRotateZ('0');
-                setMeshes((prev) =>
-                  prev.map((mesh) => ({
-                    ...mesh,
-                    rotate: [0, 0, 0],
-                  }))
-                );
+                // Forzar redraw
+                setMeshes((prev) => prev.map(m => ({ ...m })));
               }}
             >
               <ion-icon name="refresh-outline"></ion-icon>
