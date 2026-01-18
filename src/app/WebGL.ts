@@ -508,6 +508,31 @@ export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: 
   return result;
 }
 
+// Función auxiliar para obtener MVP completa
+function getFullMVP(mesh: Mesh): mat4 {
+  const model = calculateModelMatrix(mesh);
+  
+  // Proyección
+  const projection = mat4.create();
+  mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
+  
+  // Transformación global por rotación alrededor de `globalCenter`
+  const globalTransform = mat4.create();
+  mat4.translate(globalTransform, globalTransform, globalCenter);
+  const rotMat = mat4.create();
+  mat4.fromQuat(rotMat, globalQuat);
+  mat4.multiply(globalTransform, globalTransform, rotMat);
+  mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+  
+  // MVP = projection * globalTransform * model
+  const temp = mat4.create();
+  mat4.multiply(temp, globalTransform, model);
+  const mvp = mat4.create();
+  mat4.multiply(mvp, projection, temp);
+  
+  return mvp;
+}
+
 export function drawBoundingBox(mesh: any, color: [number, number, number]) {
   console.log("Estoy en drawBoundingBox - mesh id:", mesh?.id, "color:", color);
   
@@ -626,14 +651,10 @@ export function drawBoundingBox(mesh: any, color: [number, number, number]) {
     gl.uniform3fv(uColor, new Float32Array(color));
   }
 
-  // Aplica las mismas transformaciones que se usan al renderizar (calcular matriz de modelo consistente)
+  // Aplica las mismas transformaciones que se usan al renderizar
   const uMVP = gl.getUniformLocation(lineProgram, "uMVP");
   if (uMVP) {
-    const model = calculateModelMatrix(mesh);
-    const projection = mat4.create();
-    mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
-    const mvp = mat4.create();
-    mat4.multiply(mvp, projection, model);
+    const mvp = getFullMVP(mesh); // Función auxiliar
     gl.uniformMatrix4fv(uMVP, false, mvp);
   }
 
