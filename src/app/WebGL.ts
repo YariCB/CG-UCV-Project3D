@@ -1,10 +1,49 @@
-import { mat4, vec4 } from 'gl-matrix';
+import { mat4, vec4, quat } from 'gl-matrix';
 import { computeBoundingBox } from './lib/objLoader';
 
 let gl: WebGLRenderingContext | null = null;
 let renderProgram: WebGLProgram | null = null;
 let pickingProgram: WebGLProgram | null = null;
 let lineProgram: WebGLProgram | null = null;
+
+// Rotación global (cuaternión) y pila de deshacer
+let globalQuat = quat.create();
+let globalQuatStack: Float32Array[] = [];
+// Centro global (actualizado en redraw)
+let globalCenter: [number, number, number] = [0, 0, -3];
+
+export function pushGlobalRotation() {
+  globalQuatStack.push(quat.clone(globalQuat));
+}
+
+export function undoGlobalRotation() {
+  if (globalQuatStack.length === 0) {
+    quat.identity(globalQuat);
+  } else {
+    const last = globalQuatStack.pop()!;
+    quat.copy(globalQuat, last);
+  }
+}
+
+export function resetGlobalRotation() {
+  quat.identity(globalQuat);
+  globalQuatStack = [];
+}
+
+export function applyDeltaGlobalQuat(delta: quat) {
+  const out = quat.create();
+  quat.multiply(out, delta, globalQuat);
+  quat.copy(globalQuat, out);
+}
+
+// Sensibilidad de rotación (grados por 100px)
+let rotationSensitivity: [number, number, number] = [1, 1, 1];
+export function setRotationSensitivity(x: number, y: number, z: number) {
+  rotationSensitivity = [x, y, z];
+}
+export function getRotationSensitivity() {
+  return rotationSensitivity;
+}
 
 export function initWebGL(canvas: HTMLCanvasElement): boolean {
   gl = canvas.getContext('webgl');
@@ -216,10 +255,20 @@ function applyMVP(program: WebGLProgram, mesh: Mesh) {
   // Proyección
   const projection = mat4.create();
   mat4.perspective(projection, Math.PI / 4, gl!.canvas.width / gl!.canvas.height, 0.1, 100);
-  
-  // MVP = Proyección × Modelo
+
+  // Transformación global por rotación alrededor de `globalCenter`
+  const globalTransform = mat4.create();
+  mat4.translate(globalTransform, globalTransform, globalCenter);
+  const rotMat = mat4.create();
+  mat4.fromQuat(rotMat, globalQuat);
+  mat4.multiply(globalTransform, globalTransform, rotMat);
+  mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+
+  // MVP = projection * globalTransform * model
+  const temp = mat4.create();
+  mat4.multiply(temp, globalTransform, model);
   const mvp = mat4.create();
-  mat4.multiply(mvp, projection, model);
+  mat4.multiply(mvp, projection, temp);
 
   const uMVP = gl!.getUniformLocation(program, "uMVP");
   gl!.uniformMatrix4fv(uMVP, false, mvp);
@@ -322,6 +371,14 @@ export function redraw(
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // Calcular centro global (necesario para rotaciones globales)
+  if (meshes.length > 0) {
+    const gb = computeGlobalBoundingBox(meshes);
+    globalCenter = [ (gb.min[0] + gb.max[0]) / 2, (gb.min[1] + gb.max[1]) / 2, (gb.min[2] + gb.max[2]) / 2 ];
+  } else {
+    globalCenter = [0,0,-3];
+  }
 
   meshes.forEach(m => {
     drawMesh(m);
@@ -750,12 +807,24 @@ export function drawGlobalBoundingBox(meshes: Mesh[], color: [number, number, nu
     gl.uniform3fv(uColor, new Float32Array(color));
   }
 
-  // Matriz MVP simple (solo proyección, sin transformaciones de modelo)
+  // Matriz MVP que incluye la rotación global alrededor de globalCenter
   const uMVP = gl.getUniformLocation(lineProgram, "uMVP");
   if (uMVP) {
     const projection = mat4.create();
     mat4.perspective(projection, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100);
-    gl.uniformMatrix4fv(uMVP, false, projection);
+
+    const globalTransform = mat4.create();
+    mat4.translate(globalTransform, globalTransform, globalCenter);
+    const rotMat = mat4.create();
+    mat4.fromQuat(rotMat, globalQuat);
+    mat4.multiply(globalTransform, globalTransform, rotMat);
+    mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+
+    const mvp = mat4.create();
+    const temp = mat4.create();
+    mat4.multiply(temp, globalTransform, mat4.create()); // globalTransform * I
+    mat4.multiply(mvp, projection, temp);
+    gl.uniformMatrix4fv(uMVP, false, mvp);
   }
 
   // Dibujar aristas

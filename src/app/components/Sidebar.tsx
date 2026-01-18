@@ -3,7 +3,7 @@ import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 import ConfirmationModal from './ConfirmationModal';
 import { parseOBJ, parseMTL, assignMaterials, normalizeOBJ, Material } from '../lib/objLoader';
-import { setDepthTest, setCulling } from '../WebGL';
+import { setDepthTest, setCulling, setRotationSensitivity, undoGlobalRotation, resetGlobalRotation } from '../WebGL';
 
 interface SidebarProps { 
   bgColor: string; 
@@ -62,6 +62,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [scaleX, setScaleX] = useState<string>('1');
   const [scaleY, setScaleY] = useState<string>('1');
   const [scaleZ, setScaleZ] = useState<string>('1');
+
+  // Estados para inputs de rotación
+  const [rotateX, setRotateX] = useState<string>('0');
+  const [rotateY, setRotateY] = useState<string>('0');
+  const [rotateZ, setRotateZ] = useState<string>('0');
 
   const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd' | 'bboxLocal'>(null);
   const buttonLabels: Record<string, string> = {
@@ -600,6 +605,110 @@ const Sidebar: React.FC<SidebarProps> = ({
                 })));
               }} />
             </div>
+        </div>
+
+        <div className="transform-group">
+          <label className="label-small">Rotación del Objeto X, Y, Z (grados)</label>
+          <label className="label-small-small">Presione el click derecho y arrastre la figura para activar la rotación.</label>
+
+          <div className="rotation-row">
+            <div className="xyz-inputs">
+              <div className="xyz-input-with-unit">
+                <input
+                  type="number"
+                  placeholder="X"
+                  step={1}
+                  value={rotateX}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRotateX(v);
+                    const num = parseFloat(v) || 0;
+                    setMeshes((prev) =>
+                      prev.map((mesh) => ({
+                        ...mesh,
+                        rotate: [num, mesh.rotate?.[1] ?? 0, mesh.rotate?.[2] ?? 0],
+                      }))
+                    );
+                    setRotationSensitivity(num, parseFloat(rotateY) || 0, parseFloat(rotateZ) || 0);
+                  }}
+                />
+                <span className="xyz-unit">°</span>
+              </div>
+
+              <div className="xyz-input-with-unit">
+                <input
+                  type="number"
+                  placeholder="Y"
+                  step={1}
+                  value={rotateY}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRotateY(v);
+                    const num = parseFloat(v) || 0;
+                      setMeshes((prev) =>
+                        prev.map((mesh) => ({
+                          ...mesh,
+                          rotate: [mesh.rotate?.[0] ?? 0, num, mesh.rotate?.[2] ?? 0],
+                        }))
+                      );
+                      setRotationSensitivity(parseFloat(rotateX) || 0, num, parseFloat(rotateZ) || 0);
+                  }}
+                />
+                <span className="xyz-unit">°</span>
+              </div>
+
+              <div className="xyz-input-with-unit">
+                <input
+                  type="number"
+                  placeholder="Z"
+                  step={1}
+                  value={rotateZ}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRotateZ(v);
+                    const num = parseFloat(v) || 0;
+                      setMeshes((prev) =>
+                        prev.map((mesh) => ({
+                          ...mesh,
+                          rotate: [mesh.rotate?.[0] ?? 0, mesh.rotate?.[1] ?? 0, num],
+                        }))
+                      );
+                      setRotationSensitivity(parseFloat(rotateX) || 0, parseFloat(rotateY) || 0, num);
+                  }}
+                />
+                <span className="xyz-unit">°</span>
+              </div>
+            </div>
+
+            <button
+              className="sidebar-button rotation-reset-btn"
+              title="Resetear rotación"
+              onClick={() => {
+                setRotateX('0');
+                setRotateY('0');
+                setRotateZ('0');
+                setMeshes((prev) =>
+                  prev.map((mesh) => ({
+                    ...mesh,
+                    rotate: [0, 0, 0],
+                  }))
+                );
+              }}
+            >
+              <ion-icon name="refresh-outline"></ion-icon>
+            </button>
+            <button
+              className="sidebar-button rotation-reset-btn"
+              title="Deshacer última rotación global"
+              onClick={() => {
+                undoGlobalRotation();
+                // Forzar redraw actualizando meshes sin cambiar datos
+                setMeshes(prev => prev.map(m => ({ ...m })));
+              }}
+            >
+              <ion-icon name="return-up-back-outline"></ion-icon>
+            </button>
+          </div>
         </div>
 
       </div>

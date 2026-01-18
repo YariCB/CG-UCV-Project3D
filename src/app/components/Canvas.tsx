@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt } from '../WebGL';
+import { quat } from 'gl-matrix';
+import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -41,6 +42,9 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // Arrastre del objeto completo
   const isDraggingObjectRef = useRef(false);
+
+  // Rotación global con botón derecho
+  const isRotatingRef = useRef(false);
 
   // Profundidad inicial del objeto
   const initialDepthRef = useRef<number>(-3); 
@@ -91,6 +95,18 @@ const Canvas: React.FC<CanvasProps> = ({
     const py = Math.floor(Math.max(0, Math.min(y, canvas.height - 1)));
     
     const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
+
+    // Si el botón derecho está presionado, iniciar rotación global
+    if (e.button === 2) {
+      if (meshes.length === 0) return;
+      pushGlobalRotation();
+      isRotatingRef.current = true;
+      lastMouseXRef.current = e.clientX;
+      lastMouseYRef.current = e.clientY;
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
 
     // Si BBox global está activa, siempre arrastrar objeto completo
     if (activeSettings.bbox) {
@@ -151,7 +167,7 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingRef.current || !setMeshes) return;
+    if ((!isDraggingRef.current && !isRotatingRef.current) || !setMeshes) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -164,6 +180,31 @@ const Canvas: React.FC<CanvasProps> = ({
     const fov = Math.PI / 4; // 45 grados
     const aspect = rect.width / rect.height;
     
+    if (isRotatingRef.current) {
+      // Rotación global basada en movimiento del ratón
+      const deltaX = e.clientX - lastMouseXRef.current;
+      const deltaY = e.clientY - lastMouseYRef.current;
+      const sens = getRotationSensitivity();
+      // Interpretar inputs como grados por 100px
+      const angDegY = (deltaX * sens[1]) / 100; // rotar alrededor de Y por movimiento horizontal
+      const angDegX = (deltaY * sens[0]) / 100; // rotar alrededor de X por movimiento vertical
+      const angRadX = angDegX * Math.PI / 180;
+      const angRadY = angDegY * Math.PI / 180;
+
+      const qx = quat.create();
+      const qy = quat.create();
+      quat.setAxisAngle(qx, [1, 0, 0], angRadX);
+      quat.setAxisAngle(qy, [0, 1, 0], angRadY);
+      const deltaQ = quat.create();
+      quat.multiply(deltaQ, qy, qx);
+      applyDeltaGlobalQuat(deltaQ);
+      // Forzar redraw
+      setMeshes(prev => prev.map(m => ({ ...m })));
+      lastMouseXRef.current = e.clientX;
+      lastMouseYRef.current = e.clientY;
+      return;
+    }
+
     if (isDraggingObjectRef.current) {
       // Arrastrar objeto completo
       if (meshes.length === 0) return;
@@ -230,6 +271,13 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // DRAG END - mouseup
   const handleMouseUp = useCallback(() => {
+    if (isRotatingRef.current) {
+      isRotatingRef.current = false;
+      isDraggingRef.current = false;
+      isDraggingObjectRef.current = false;
+      return;
+    }
+
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
       isDraggingObjectRef.current = false;
@@ -359,8 +407,18 @@ const Canvas: React.FC<CanvasProps> = ({
     if (!canvas) return;
 
     canvas.addEventListener('click', handleClick as any);
+    // Evitar menú contextual para usar botón derecho en rotación
+    const ctx = (e: Event) => e.preventDefault();
+    canvas.addEventListener('contextmenu', ctx);
     return () => canvas.removeEventListener('click', handleClick as any);
   }, [handleClick]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = (e: Event) => e.preventDefault();
+    return () => canvas.removeEventListener('contextmenu', ctx);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
