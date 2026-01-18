@@ -916,10 +916,21 @@ export function drawGlobalBoundingBox(meshes: Mesh[], color: [number, number, nu
     mat4.multiply(globalTransform, globalTransform, rotMat);
     mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
 
-    const mvp = mat4.create();
+    // View (usar cámara)
+    const view = mat4.create();
+    const eye = cameraPos;
+    const center = vec3.create();
+    vec3.set(center, cameraPos[0] + cameraFront[0], cameraPos[1] + cameraFront[1], cameraPos[2] + cameraFront[2]);
+    const up = cameraUp;
+    mat4.lookAt(view, eye as any, center as any, up as any);
+
+    // MVP = projection * view * globalTransform * I
     const temp = mat4.create();
-    mat4.multiply(temp, globalTransform, mat4.create()); // globalTransform * I
-    mat4.multiply(mvp, projection, temp);
+    mat4.multiply(temp, globalTransform, mat4.create());
+    const tmp2 = mat4.create();
+    mat4.multiply(tmp2, view, temp);
+    const mvp = mat4.create();
+    mat4.multiply(mvp, projection, tmp2);
     gl.uniformMatrix4fv(uMVP, false, mvp);
   }
 
