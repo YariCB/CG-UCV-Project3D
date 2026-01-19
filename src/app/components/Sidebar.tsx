@@ -89,7 +89,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     aa: 'Anti Aliasing',
     zBuffer: 'Z-Buffer',
     culling: 'Back-face Culling',
-    normals: 'Ver Normales',
+    vertex: 'Mostrar Vértices',
+    normals: 'Mostrar Normales',
     bbox: 'Bounding Box Global',
     center: 'Centrar Objeto'
   };
@@ -555,8 +556,19 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* SECCIÓN 3: VISUALIZACIÓN */}
       <div className="sidebar-section">
         <h3 className="section-title">Visualización</h3>
-        <div className="tool-group"> {/* Solo un tool-group aquí */}
-          
+        <div className="tool-group">
+
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.vertex ? 'active' : ''}`} 
+              title = {buttonLabels.vertex}
+              onClick={() => toggleSetting('vertex')}
+            >
+              <ion-icon name="git-commit-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.vertex}</span>
+          </div>
+
           <div className="tool-button-wrapper">
             <button 
               className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
@@ -574,7 +586,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               title = {buttonLabels.normals}
               onClick={() => toggleSetting('normals')}
             >
-              <ion-icon name="git-commit-outline"></ion-icon>
+              <ion-icon name="logo-apple-ar"></ion-icon>
             </button>
             <span className="tool-button-label">{buttonLabels.normals}</span>
           </div>
@@ -590,24 +602,133 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span className="tool-button-label">{buttonLabels.center}</span>
           </div>
 
-        </div>
-
-        <div className="input-row">
-          <label>Normales</label>
-          <div className="color-picker-relative-container">
-            <div className="preview-group">
-              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}>
-                <div className="color-swatch" style={{background: normalsColor}} />
-              </button>
-              {openPicker === 'normals' && (
-                <div className="color-tooltip">
-                  <ColorWheel currentColor={normalsColor} size={140} onColorSelect={(c) => setNormalsColor(c)} />
-                  <RgbInputs color={normalsColor} onColorChange={(c) => setNormalsColor(c)} />
-                </div>
-              )}
-            </div>
+          <div className="tool-button-wrapper">
+            <button 
+              className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
+              title = {buttonLabels.bbox}
+              onClick={() => toggleSetting('bbox')}
+            >
+              <ion-icon name="cube-outline"></ion-icon>
+            </button>
+            <span className="tool-button-label">{buttonLabels.bbox}</span>
           </div>
         </div>
+
+        {/* Controles dinámicos según lo activado */}
+        {(activeSettings.vertex || activeSettings.wireframe || activeSettings.normals || activeSettings.bbox) && (
+        <div className="dynamic-visualization-controls">
+          {activeSettings.vertex && (
+            <>
+            <div className="input-row">
+              <label>Color de Vértices</label>
+              <div className="color-picker-relative-container">
+                <div className="preview-group">
+                  <button 
+                    className="color-preview-button sidebar-button" 
+                    onClick={() => setOpenPicker(openPicker === 'vertex' ? null : 'vertex')}
+                  >
+                    <div className="color-swatch" style={{background: activeSettings.vertexColor}} />
+                  </button>
+                  {openPicker === 'vertex' && (
+                    <div className="color-tooltip">
+                      <ColorWheel currentColor={activeSettings.vertexColor} size={140} 
+                        onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
+                      <RgbInputs color={activeSettings.vertexColor} 
+                        onColorChange={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="input-row slider-row-adjustment">
+              <label>Tamaño de Vértices</label>
+              <div className="slider-container">
+                <input 
+                  type="range" 
+                  min={1} 
+                  max={10} 
+                  value={activeSettings.vertexSize} 
+                  onChange={(e) => setActiveSettings(prev => ({ ...prev, vertexSize: parseInt(e.target.value) }))} 
+                />
+                <span className="slider-value">{activeSettings.vertexSize}</span>
+              </div>
+            </div>
+            </>
+          )}
+                      
+          {activeSettings.wireframe && (
+            <div className="input-row">
+              <label>Color de Wireframe</label>
+              <div className="color-picker-relative-container">
+                <div className="preview-group">
+                  <button 
+                    className="color-preview-button sidebar-button" 
+                    onClick={() => setOpenPicker(openPicker === 'wireframe' ? null : 'wireframe')}
+                  >
+                    <div className="color-swatch" style={{background: '#ffffff'}} />
+                  </button>
+                  {openPicker === 'wireframe' && (
+                    <div className="color-tooltip">
+                      <ColorWheel currentColor={'#ffffff'} size={140} onColorSelect={(c) => {/* set wireframe color */}} />
+                      <RgbInputs color={'#ffffff'} onColorChange={(c) => {/* set wireframe color */}} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSettings.normals && (
+            <div className="input-row">
+              <label>Color de Normales</label>
+              <div className="color-picker-relative-container">
+                <div className="preview-group">
+                  <button 
+                    className="color-preview-button sidebar-button" 
+                    onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}
+                  >
+                    <div className="color-swatch" style={{background: activeSettings.normalsColor}} />
+                  </button>
+                  {openPicker === 'normals' && (
+                    <div className="color-tooltip">
+                      <ColorWheel currentColor={activeSettings.normalsColor} size={140} 
+                        onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
+                      <RgbInputs color={activeSettings.normalsColor} 
+                        onColorChange={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSettings.bbox && (
+            <div className="input-row">
+              <label>Color de Bounding Box Global</label>
+              <div className="color-picker-relative-container">
+                <div className="preview-group">
+                  <button 
+                    className="color-preview-button sidebar-button" 
+                    onClick={() => setOpenPicker(openPicker === 'bboxGlobal' ? null : 'bboxGlobal')}
+                  >
+                    <div className="color-swatch" style={{background: bboxGlobalColor}} />
+                  </button>
+                  {openPicker === 'bboxGlobal' && (
+                    <div className="color-tooltip">
+                      <ColorWheel currentColor={bboxGlobalColor} size={140} onColorSelect={(c) => setBboxGlobalColor(c)} />
+                      <RgbInputs color={bboxGlobalColor} onColorChange={(c) => setBboxGlobalColor(c)} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+      </div>
+      )}
+
+      <div className="sidebar-separator" />
+      
+      <h3 className="section-title">Transformaciones</h3>
 
         <div className="transform-group">
             <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
@@ -627,41 +748,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 const num = parseFloat(v) || 0;
                 setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] })));
               }} />
-            </div>
-
-            <div className="bbox-global-group">
-              <div className="tool-button-wrapper">
-                <button 
-                  className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
-                  title = {buttonLabels.bbox}
-                  onClick={() => toggleSetting('bbox')}
-                >
-                  <ion-icon name="cube-outline"></ion-icon>
-                </button>
-                <span className="tool-button-label">{buttonLabels.bbox}</span>
-              </div>
-
-              {/* Selector de color para BBox Global */}
-                <div className="color-picker-relative-container">
-                  <div className="preview-group">
-                    <div className="tool-button-wrapper">
-                      <button 
-                        className="color-preview-button sidebar-button" 
-                        onClick={() => setOpenPicker(openPicker === 'bboxGlobal' ? null : 'bboxGlobal')}
-                      >
-                        <div className="color-swatch" style={{background: bboxGlobalColor}} />
-                      </button>
-                      <span className="tool-button-label">Global BBox Color</span>
-                    </div>
-                    
-                    {openPicker === 'bboxGlobal' && (
-                      <div className="color-tooltip bbox-tooltip-adjust">
-                        <ColorWheel currentColor={bboxGlobalColor} size={140} onColorSelect={(c) => setBboxGlobalColor(c)} />
-                        <RgbInputs color={bboxGlobalColor} onColorChange={(c) => setBboxGlobalColor(c)} />
-                      </div>
-                    )}
-                  </div>
-                </div>
             </div>
         </div>
 

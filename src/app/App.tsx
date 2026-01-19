@@ -8,9 +8,13 @@ type ActiveSettings = {
 	zBuffer: boolean;
 	culling: boolean;
 	normals: boolean;
+	normalsColor: string;
 	bbox: boolean;
 	bboxlocal: boolean;
 	wireframe: boolean;
+	vertices: boolean;
+	vertexColor: string;
+	vertexSize: number;
 }
 
 const App: React.FC = () => {
@@ -27,9 +31,13 @@ const App: React.FC = () => {
 		zBuffer: true,
 		culling: true,
 		normals: false,
+		normalsColor: 'rgba(0, 0, 255, 1)',
 		bbox: false,
 		bboxlocal: false,
 		wireframe: false,
+		vertices: false,
+		vertexColor: 'rgb(23, 178, 209)',
+		vertexSize: 3,
 	});
 
 	const toggleBBoxLocal = useCallback(() => {
