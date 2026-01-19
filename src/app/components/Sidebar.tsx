@@ -160,6 +160,45 @@ const Sidebar: React.FC<SidebarProps> = ({
       containerRef.current!
     );
   };
+
+  useEffect(() => {
+    function onGlobalMouseDown(e: MouseEvent) {
+      if (!openPicker) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const clickedInsidePortal = Array.from(portalContainersRef.current)
+        .some(container => container.contains(target));
+      if (clickedInsidePortal) return;
+
+      const clickedPreviewButton = !!target.closest('.color-preview-button');
+      if (clickedPreviewButton) return;
+
+      const sidebarContent = document.querySelector('.sidebar-content');
+      const clickedInsideSidebar = !!(sidebarContent && sidebarContent.contains(target));
+
+      const clickedInsideInteractive =
+        !!target.closest('.input-row') ||
+        !!target.closest('.tool-group') ||
+        !!target.closest('.dynamic-visualization-controls');
+
+      const isSidebarBackgroundClick = clickedInsideSidebar && !clickedInsideInteractive;
+
+      const isMainCanvasClick =
+        target.tagName === 'CANVAS' ||
+        !!target.closest('#gl-canvas') ||
+        !!target.closest('.webgl-canvas');
+
+      if (isSidebarBackgroundClick || isMainCanvasClick) {
+        setOpenPicker(null);
+      }
+    }
+
+    document.addEventListener('mousedown', onGlobalMouseDown, true);
+    return () => document.removeEventListener('mousedown', onGlobalMouseDown, true);
+  }, [openPicker]);
+
   const buttonLabels: Record<string, string> = {
     fps: 'Mostrar FPS',
     aa: 'Anti Aliasing',

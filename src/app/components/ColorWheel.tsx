@@ -250,6 +250,30 @@ const ColorWheel: React.FC<ColorWheelProps> = ({ onColorSelect, currentColor, si
             }
         }
 
+            // Start dragging when the pointer ENTERS the canvas while the button is already pressed
+            function onPointerOver(e: PointerEvent) {
+              // if already dragging, ignore
+              if (dragMode.current.mode) return;
+              // only start if primary button is pressed
+              if (!(e.buttons & 1)) return;
+              const { x, y } = getMousePos(e);
+              const dx = x - cx;
+              const dy = y - cy;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+
+              if (dist >= innerR && dist <= outerR) {
+                dragMode.current.mode = 'ring';
+              } else if (dist < innerR) {
+                dragMode.current.mode = 'tri';
+              } else {
+                return;
+              }
+
+              // store the pointer id so pointermove filters correctly
+              dragMode.current.pointerId = e.pointerId;
+              updateFromPointer(x, y, dragMode.current.mode);
+            }
+
         function onPointerMove(e: PointerEvent) {
             if (!dragMode.current.mode) return;
             if (dragMode.current.pointerId != null && e.pointerId !== dragMode.current.pointerId) return;
@@ -268,14 +292,19 @@ const ColorWheel: React.FC<ColorWheelProps> = ({ onColorSelect, currentColor, si
 
         canvas.addEventListener('pointerdown', onPointerDown as any);
         canvas.addEventListener('pointermove', onPointerMove as any);
+        canvas.addEventListener('pointerover', onPointerOver as any);
         canvas.addEventListener('pointerup', onPointerUp as any);
         canvas.addEventListener('pointercancel', onPointerUp as any);
+        // ensure we clear drag state even if pointerup happens outside canvas
+        window.addEventListener('pointerup', onPointerUp as any);
 
         return () => {
             canvas.removeEventListener('pointerdown', onPointerDown as any);
             canvas.removeEventListener('pointermove', onPointerMove as any);
+          canvas.removeEventListener('pointerover', onPointerOver as any);
             canvas.removeEventListener('pointerup', onPointerUp as any);
             canvas.removeEventListener('pointercancel', onPointerUp as any);
+          window.removeEventListener('pointerup', onPointerUp as any);
         };
 
     }, [onColorSelect, currentColor, size, hue]);
