@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import '../../styles/Sidebar.css';
 import ColorWheel from './ColorWheel';
 import ConfirmationModal from './ConfirmationModal';
@@ -83,7 +84,82 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [rotateY, setRotateY] = useState<string>('0');
   const [rotateZ, setRotateZ] = useState<string>('0');
 
-  const [openPicker, setOpenPicker] = useState<null | 'bg' | 'normals' | 'kd' | 'bboxLocal'>(null);
+  const [openPicker, setOpenPicker] = useState<null | 'bg' | 'vertex' | 'wireframe' | 'normals' | 'bboxGlobal' | 'kd' | 'bboxLocal'>(null);
+  // Set of portal containers (to detect clicks inside portals)
+  const portalContainersRef = useRef<Set<HTMLElement>>(new Set());
+  // Refs for preview anchors
+  const previewBgRef = useRef<HTMLElement | null>(null);
+  const previewVertexRef = useRef<HTMLElement | null>(null);
+  const previewWireframeRef = useRef<HTMLElement | null>(null);
+  const previewNormalsRef = useRef<HTMLElement | null>(null);
+  const previewBBoxGlobalRef = useRef<HTMLElement | null>(null);
+  const previewKdRef = useRef<HTMLElement | null>(null);
+  const previewBBoxLocalRef = useRef<HTMLElement | null>(null);
+
+  // PortalTooltip: render children into body and position relative to anchorRef
+  const PortalTooltip: React.FC<{
+    anchorRef: React.RefObject<HTMLElement>;
+    className?: string;
+    preferUp?: boolean;
+    children: React.ReactNode;
+  }> = ({ anchorRef, className, children, preferUp = false }) => {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    if (containerRef.current === null) containerRef.current = document.createElement('div');
+
+    useEffect(() => {
+      const container = containerRef.current!;
+      container.className = className || 'color-tooltip';
+      container.style.position = 'absolute';
+      container.style.zIndex = '2147483647';
+      document.body.appendChild(container);
+      portalContainersRef.current.add(container);
+      return () => {
+        portalContainersRef.current.delete(container);
+        try { document.body.removeChild(container); } catch (e) {}
+      };
+    }, [className]);
+
+    // Positioning
+    useEffect(() => {
+      const container = containerRef.current!;
+      function update() {
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+        const aRect = anchor.getBoundingClientRect();
+        // measure content size
+        const childRect = container.firstElementChild ? (container.firstElementChild as HTMLElement).getBoundingClientRect() : { width: 200, height: 220 };
+        const tooltipW = childRect.width || 200;
+        const tooltipH = childRect.height || 220;
+
+        const spaceBelow = window.innerHeight - aRect.bottom;
+        const offset = 6;
+        let top: number;
+        if (!preferUp && spaceBelow > tooltipH + 12) {
+          top = aRect.bottom + offset + window.scrollY;
+        } else {
+          // place above
+          top = aRect.top - tooltipH - offset + window.scrollY;
+          if (top < 0) top = aRect.bottom + offset + window.scrollY; // fallback
+        }
+        let left = aRect.left + window.scrollX;
+        // keep within viewport horizontally
+        if (left + tooltipW > window.innerWidth) left = Math.max(8, window.innerWidth - tooltipW - 8);
+
+        container.style.top = `${top}px`;
+        container.style.left = `${left}px`;
+      }
+      // initial update after paint
+      const raf = requestAnimationFrame(update);
+      window.addEventListener('resize', update);
+      window.addEventListener('scroll', update, true);
+      return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+    }, [anchorRef, preferUp]);
+
+    return ReactDOM.createPortal(
+      <div>{children}</div>,
+      containerRef.current!
+    );
+  };
   const buttonLabels: Record<string, string> = {
     fps: 'Mostrar FPS',
     aa: 'Anti Aliasing',
@@ -381,18 +457,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
   };
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    function onDocDown(e: MouseEvent) {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (target.closest('.color-tooltip') || target.closest('.color-preview-button')) return;
-      setOpenPicker(null);
-    }
-    if (openPicker) document.addEventListener('mousedown', onDocDown);
-    return () => document.removeEventListener('mousedown', onDocDown);
-  }, [openPicker]);
-
   // RGB Inputs component (no alpha)
   interface RgbInputsProps { color: string; onColorChange: (c: string) => void }
   const RgbInputs: React.FC<RgbInputsProps> = ({ color, onColorChange }) => {
@@ -461,544 +525,560 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
     <aside className="sidebar-container">
-      {/* SECCIÓN 1: ARCHIVO */}
-      <div className="sidebar-section">
-        <div className="file-ops-group">
-          <button
-            className="sidebar-button archive-btn"
-            onClick={() => {
-              setModalTitle('Cargar archivo 3D');
-              setModalMessage('Para cargar el objeto 3D debe seleccionar tanto el archivo .obj como el archivo .mtl en el explorador.');
-              setModalOnConfirm(() => () => fileInputRef.current?.click());
-              setModalOpen(true);
-            }}
-          >
-            Archivo
-          </button>
-          <button className="sidebar-button save-btn" title="Guardar Escena">
-            <ion-icon name="save-sharp"></ion-icon>
-          </button>
+      <div className="sidebar-content">
+        {/* SECCIÓN 1: ARCHIVO */}
+        <div className="sidebar-section">
+          <div className="file-ops-group">
+            <button
+              className="sidebar-button archive-btn"
+              onClick={() => {
+                setModalTitle('Cargar archivo 3D');
+                setModalMessage('Para cargar el objeto 3D debe seleccionar tanto el archivo .obj como el archivo .mtl en el explorador.');
+                setModalOnConfirm(() => () => fileInputRef.current?.click());
+                setModalOpen(true);
+              }}
+            >
+              Archivo
+            </button>
+            <button className="sidebar-button save-btn" title="Guardar Escena">
+              <ion-icon name="save-sharp"></ion-icon>
+            </button>
+          </div>
+          <input type="file" ref={fileInputRef} className="hidden-file-input" multiple accept=".obj,.mtl" onChange={e => handleFileUpload(e.target.files)} />
         </div>
-        <input type="file" ref={fileInputRef} className="hidden-file-input" multiple accept=".obj,.mtl" onChange={e => handleFileUpload(e.target.files)} />
-      </div>
 
-      <div className="sidebar-separator" />
+        <div className="sidebar-separator" />
 
-      {/* SECCIÓN 2: ESCENA (Renderizado global) */}
-      <div className="sidebar-section">
-        <h3 className="section-title">Configuración de Escena</h3>
-        <div className="tool-group">
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
-              title="Mostrar FPS"
-              onClick={() => toggleSetting('fps')}
-            >
-              <ion-icon name="speedometer-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.fps}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
-              title="Antialiasing"
-              onClick={() => toggleSetting('aa')}
-            >
-              <span className="aa-label">AA</span>
-            </button>
-            <span className="tool-button-label">{buttonLabels.aa}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
-              title="Z-Buffer (Depth Test)"
-              onClick={() => toggleSetting('zBuffer')}
-            >
-              <ion-icon name="layers-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.zBuffer}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.culling ? 'active' : ''}`} 
-              title="Back-face Culling"
-              onClick={() => toggleSetting('culling')}
-            >
-              <ion-icon name="albums-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.culling}</span>
-          </div>
-        </div>
-        
-        <div className="input-row">
-          <label>Fondo</label>
-          <div className="color-picker-relative-container">
-            <div className="preview-group">
-              <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
-                <div className="color-swatch" style={{background: bgColor}} />
+        {/* SECCIÓN 2: ESCENA (Renderizado global) */}
+        <div className="sidebar-section">
+          <h3 className="section-title">Configuración de Escena</h3>
+          <div className="tool-group">
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
+                title="Mostrar FPS"
+                onClick={() => toggleSetting('fps')}
+              >
+                <ion-icon name="speedometer-outline"></ion-icon>
               </button>
-              {openPicker === 'bg' && (
-                <div className="color-tooltip">
-                  <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
-                  <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
-                </div>
-              )}
+              <span className="tool-button-label">{buttonLabels.fps}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
+                title="Antialiasing"
+                onClick={() => toggleSetting('aa')}
+              >
+                <span className="aa-label">AA</span>
+              </button>
+              <span className="tool-button-label">{buttonLabels.aa}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
+                title="Z-Buffer (Depth Test)"
+                onClick={() => toggleSetting('zBuffer')}
+              >
+                <ion-icon name="layers-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.zBuffer}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.culling ? 'active' : ''}`} 
+                title="Back-face Culling"
+                onClick={() => toggleSetting('culling')}
+              >
+                <ion-icon name="albums-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.culling}</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="sidebar-separator" />
-
-      {/* SECCIÓN 3: VISUALIZACIÓN */}
-      <div className="sidebar-section">
-        <h3 className="section-title">Visualización</h3>
-        <div className="tool-group">
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.vertex ? 'active' : ''}`} 
-              title = {buttonLabels.vertex}
-              onClick={() => toggleSetting('vertex')}
-            >
-              <ion-icon name="git-commit-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.vertex}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
-              title = {wireframeLabel}
-              onClick={() => toggleSetting('wireframe')}
-            >
-              <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
-            </button>
-            <span className="tool-button-label">{wireframeLabel}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
-              title = {buttonLabels.normals}
-              onClick={() => toggleSetting('normals')}
-            >
-              <ion-icon name="logo-apple-ar"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.normals}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className="sidebar-button center-btn" 
-              title= {buttonLabels.center}
-              onClick={handleCenterObject}
-            >
-              <ion-icon name="contract-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.center}</span>
-          </div>
-
-          <div className="tool-button-wrapper">
-            <button 
-              className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
-              title = {buttonLabels.bbox}
-              onClick={() => toggleSetting('bbox')}
-            >
-              <ion-icon name="cube-outline"></ion-icon>
-            </button>
-            <span className="tool-button-label">{buttonLabels.bbox}</span>
-          </div>
-        </div>
-
-        {/* Controles dinámicos según lo activado */}
-        {(activeSettings.vertex || activeSettings.wireframe || activeSettings.normals || activeSettings.bbox) && (
-        <div className="dynamic-visualization-controls">
-          {activeSettings.vertex && (
-            <>
-            <div className="input-row">
-              <label>Color de Vértices</label>
-              <div className="color-picker-relative-container">
-                <div className="preview-group">
-                  <button 
-                    className="color-preview-button sidebar-button" 
-                    onClick={() => setOpenPicker(openPicker === 'vertex' ? null : 'vertex')}
-                  >
-                    <div className="color-swatch" style={{background: activeSettings.vertexColor}} />
-                  </button>
-                  {openPicker === 'vertex' && (
-                    <div className="color-tooltip">
-                      <ColorWheel currentColor={activeSettings.vertexColor} size={140} 
-                        onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
-                      <RgbInputs color={activeSettings.vertexColor} 
-                        onColorChange={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="input-row slider-row-adjustment">
-              <label>Tamaño de Vértices</label>
-              <div className="slider-container">
-                <input 
-                  type="range" 
-                  min={1} 
-                  max={10} 
-                  value={activeSettings.vertexSize} 
-                  onChange={(e) => setActiveSettings(prev => ({ ...prev, vertexSize: parseInt(e.target.value) }))} 
-                />
-                <span className="slider-value">{activeSettings.vertexSize}</span>
-              </div>
-            </div>
-            </>
-          )}
-                      
-          {activeSettings.wireframe && (
-            <div className="input-row">
-              <label>Color de Wireframe</label>
-              <div className="color-picker-relative-container">
-                <div className="preview-group">
-                  <button 
-                    className="color-preview-button sidebar-button" 
-                    onClick={() => setOpenPicker(openPicker === 'wireframe' ? null : 'wireframe')}
-                  >
-                    <div className="color-swatch" style={{background: '#ffffff'}} />
-                  </button>
-                  {openPicker === 'wireframe' && (
-                    <div className="color-tooltip">
-                      <ColorWheel currentColor={'#ffffff'} size={140} onColorSelect={(c) => {/* set wireframe color */}} />
-                      <RgbInputs color={'#ffffff'} onColorChange={(c) => {/* set wireframe color */}} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSettings.normals && (
-            <div className="input-row">
-              <label>Color de Normales</label>
-              <div className="color-picker-relative-container">
-                <div className="preview-group">
-                  <button 
-                    className="color-preview-button sidebar-button" 
-                    onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}
-                  >
-                    <div className="color-swatch" style={{background: activeSettings.normalsColor}} />
-                  </button>
-                  {openPicker === 'normals' && (
-                    <div className="color-tooltip">
-                      <ColorWheel currentColor={activeSettings.normalsColor} size={140} 
-                        onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
-                      <RgbInputs color={activeSettings.normalsColor} 
-                        onColorChange={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSettings.bbox && (
-            <div className="input-row">
-              <label>Color de Bounding Box Global</label>
-              <div className="color-picker-relative-container">
-                <div className="preview-group">
-                  <button 
-                    className="color-preview-button sidebar-button" 
-                    onClick={() => setOpenPicker(openPicker === 'bboxGlobal' ? null : 'bboxGlobal')}
-                  >
-                    <div className="color-swatch" style={{background: bboxGlobalColor}} />
-                  </button>
-                  {openPicker === 'bboxGlobal' && (
-                    <div className="color-tooltip">
-                      <ColorWheel currentColor={bboxGlobalColor} size={140} onColorSelect={(c) => setBboxGlobalColor(c)} />
-                      <RgbInputs color={bboxGlobalColor} onColorChange={(c) => setBboxGlobalColor(c)} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-      </div>
-      )}
-
-      <div className="sidebar-separator" />
-      
-      <h3 className="section-title">Transformaciones</h3>
-
-        <div className="transform-group">
-            <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
-            <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" value={translateGlobalX} onChange={(e) => {
-                const v = e.target.value; setTranslateGlobalX(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => ({ ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] })));
-              }} />
-              <input type="number" placeholder="Y" step="0.1" value={translateGlobalY} onChange={(e) => {
-                const v = e.target.value; setTranslateGlobalY(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] })));
-              }} />
-              <input type="number" placeholder="Z" step="0.1" value={translateGlobalZ} onChange={(e) => {
-                const v = e.target.value; setTranslateGlobalZ(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] })));
-              }} />
-            </div>
-        </div>
-
-        <div className="transform-group">
-            <label className="label-small">Escala del Objeto (X, Y, Z)</label>
-            <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" value={scaleX} onChange={(e) => {
-                const v = e.target.value; setScaleX(v);
-                const num = parseFloat(v) || 1;
-                setMeshes(prev => prev.map(mesh => ({
-                  ...mesh,
-                  scale: Array.isArray(mesh.scale) 
-                    ? [num, mesh.scale[1] || 1, mesh.scale[2] || 1]
-                    : [num, mesh.scale || 1, mesh.scale || 1]
-                })));
-              }} />
-              <input type="number" placeholder="Y" step="0.1" value={scaleY} onChange={(e) => {
-                const v = e.target.value; setScaleY(v);
-                const num = parseFloat(v) || 1;
-                setMeshes(prev => prev.map(mesh => ({
-                  ...mesh,
-                  scale: Array.isArray(mesh.scale) 
-                    ? [mesh.scale[0] || 1, num, mesh.scale[2] || 1]
-                    : [mesh.scale || 1, num, mesh.scale || 1]
-                })));
-              }} />
-              <input type="number" placeholder="Z" step="0.1" value={scaleZ} onChange={(e) => {
-                const v = e.target.value; setScaleZ(v);
-                const num = parseFloat(v) || 1;
-                setMeshes(prev => prev.map(mesh => ({
-                  ...mesh,
-                  scale: Array.isArray(mesh.scale) 
-                    ? [mesh.scale[0] || 1, mesh.scale[1] || 1, num]
-                    : [mesh.scale || 1, mesh.scale || 1, num]
-                })));
-              }} />
-            </div>
-        </div>
-
-        <div className="transform-group">
-          <label className="label-small">Rotación del Objeto X, Y, Z (grados)</label>
-          <label className="label-small-small">Presione el click derecho y arrastre la figura para activar la rotación.</label>
-
-          <div className="rotation-row">
-            <div className="xyz-inputs">
-              <div className="xyz-input-with-unit">
-                <input
-                  type="number"
-                  placeholder="X"
-                  step={1}
-                  value={rotateX}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRotateX(v);
-                    const num = parseFloat(v) || 0;
-                    // actualizar rotación global (Euler grados)
-                    setGlobalRotationDegrees(num, parseFloat(rotateY) || 0, parseFloat(rotateZ) || 0);
-                    // Forzar redraw
-                    setMeshes(prev => prev.map(m => ({ ...m })));
-                  }}
-                />
-                <span className="xyz-unit">°</span>
-              </div>
-
-              <div className="xyz-input-with-unit">
-                <input
-                  type="number"
-                  placeholder="Y"
-                  step={1}
-                  value={rotateY}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRotateY(v);
-                    const num = parseFloat(v) || 0;
-                    setGlobalRotationDegrees(parseFloat(rotateX) || 0, num, parseFloat(rotateZ) || 0);
-                    setMeshes(prev => prev.map(m => ({ ...m })));
-                  }}
-                />
-                <span className="xyz-unit">°</span>
-              </div>
-
-              <div className="xyz-input-with-unit">
-                <input
-                  type="number"
-                  placeholder="Z"
-                  step={1}
-                  value={rotateZ}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRotateZ(v);
-                    const num = parseFloat(v) || 0;
-                    setGlobalRotationDegrees(parseFloat(rotateX) || 0, parseFloat(rotateY) || 0, num);
-                    setMeshes(prev => prev.map(m => ({ ...m })));
-                  }}
-                />
-                <span className="xyz-unit">°</span>
-              </div>
-            </div>
-
-            <button
-              className="sidebar-button rotation-reset-btn"
-              title="Resetear rotación"
-              onClick={() => {
-                // Resetear rotación global (cuaternión) y sincronizar inputs
-                resetGlobalRotation();
-                setRotateX('0');
-                setRotateY('0');
-                setRotateZ('0');
-                // Forzar redraw
-                setMeshes((prev) => prev.map(m => ({ ...m })));
-              }}
-            >
-              <ion-icon name="refresh-outline"></ion-icon>
-            </button>
-            <button
-              className="sidebar-button rotation-reset-btn"
-              title="Deshacer última rotación global"
-              onClick={() => {
-                undoGlobalRotation();
-                // Forzar redraw actualizando meshes sin cambiar datos
-                setMeshes(prev => prev.map(m => ({ ...m })));
-              }}
-            >
-              <ion-icon name="return-up-back-outline"></ion-icon>
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      <div className="sidebar-separator" />
-
-      {/* SECCIÓN 4: SUB-MALLA SELECCIONADA (Solo si hay selección vía Picking) */}
-      {selectedMeshId !== null && !activeSettings.bbox && (
-        <div className="sidebar-section selection-box">
-          <h3 className="section-title">Sub-malla Seleccionada</h3>
-
+          
           <div className="input-row">
-            <p className="selection-id">ID: {selectedMeshId}</p>
-            <label>Color Sub-malla</label>
-            <div className="color-picker-relative-container">
-              <div className="preview-group">
-                <button
-                  className="color-preview-button sidebar-button"
-                  onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}
-                >
-                  <div className="color-swatch" style={{ background: kdColor }} />
+            <label>Fondo</label>
+              <div className="color-picker-relative-container">
+              <div className="preview-group" ref={previewBgRef as any}>
+                <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
+                  <div className="color-swatch" style={{background: bgColor}} />
                 </button>
-                {openPicker === 'kd' && (
-                  <div className="color-tooltip">
-                    <ColorWheel
-                      currentColor={kdColor}
-                      size={140}
-                      onColorSelect={(c) => {
-                        setKdColor(c);
-                        // actualizar color en meshes
-                        setMeshes(prevMeshes =>
-                          prevMeshes.map(m =>
-                            m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
-                          )
-                        );
-                      }}
-                    />
-                    <RgbInputs
-                      color={kdColor}
-                      onColorChange={(c) => {
-                        setKdColor(c);
-                        setMeshes(prevMeshes =>
-                          prevMeshes.map(m =>
-                            m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
-                          )
-                        );
-                      }}
-                    />
-                  </div>
+                {openPicker === 'bg' && (
+                  <PortalTooltip anchorRef={previewBgRef as any}>
+                    <div>
+                      <ColorWheel currentColor={bgColor} size={140} onColorSelect={(c) => setBgColor(c)} />
+                      <RgbInputs color={bgColor} onColorChange={(c) => setBgColor(c)} />
+                    </div>
+                  </PortalTooltip>
                 )}
               </div>
             </div>
           </div>
-          <div className="transform-group">
-            <label className="label-small">Traslación de la Sub-Malla (X, Y, Z)</label>
-            <div className="xyz-inputs">
-              <input type="number" placeholder="X" step="0.1" value={translateLocalX} onChange={(e) => {
-                const v = e.target.value; setTranslateLocalX(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
-              }} />
-              <input type="number" placeholder="Y" step="0.1" value={translateLocalY} onChange={(e) => {
-                const v = e.target.value; setTranslateLocalY(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
-              }} />
-              <input type="number" placeholder="Z" step="0.1" value={translateLocalZ} onChange={(e) => {
-                const v = e.target.value; setTranslateLocalZ(v);
-                const num = parseFloat(v) || 0;
-                setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
-              }} />
+        </div>
+
+        <div className="sidebar-separator" />
+
+        {/* SECCIÓN 3: VISUALIZACIÓN */}
+        <div className="sidebar-section">
+          <h3 className="section-title">Visualización</h3>
+          <div className="tool-group">
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.vertex ? 'active' : ''}`} 
+                title = {buttonLabels.vertex}
+                onClick={() => toggleSetting('vertex')}
+              >
+                <ion-icon name="git-commit-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.vertex}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
+                title = {wireframeLabel}
+                onClick={() => toggleSetting('wireframe')}
+              >
+                <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
+              </button>
+              <span className="tool-button-label">{wireframeLabel}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
+                title = {buttonLabels.normals}
+                onClick={() => toggleSetting('normals')}
+              >
+                <ion-icon name="logo-apple-ar"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.normals}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className="sidebar-button center-btn" 
+                title= {buttonLabels.center}
+                onClick={handleCenterObject}
+              >
+                <ion-icon name="contract-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.center}</span>
+            </div>
+
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
+                title = {buttonLabels.bbox}
+                onClick={() => toggleSetting('bbox')}
+              >
+                <ion-icon name="cube-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.bbox}</span>
             </div>
           </div>
 
-          <div className="mesh-actions-row mt-10">
-            <div className="bbox-local-group">
-              <div className="tool-button-wrapper">
-                <button 
-                  className={`sidebar-button ${activeSettings.bboxlocal ? 'active' : ''}`} 
-                  title="BBox Local"
-                  onClick={() => toggleSetting('bboxlocal')}
-                >
-                  <ion-icon name="scan-outline"></ion-icon>
-                </button>
-                <span className="tool-button-label">BBox Local</span>
-              </div>
-
-              {/* Selector de color para BBox Local */}
-              <div className="color-picker-relative-container">
-                <div className="preview-group">
-                  <div className="tool-button-wrapper">
+          {/* Controles dinámicos según lo activado */}
+          {(activeSettings.vertex || activeSettings.wireframe || activeSettings.normals || activeSettings.bbox) && (
+          <div className="dynamic-visualization-controls">
+            {activeSettings.vertex && (
+              <>
+              <div className="input-row">
+                <label>Color de Vértices</label>
+                <div className="color-picker-relative-container">
+                  <div className="preview-group" ref={previewVertexRef as any}>
                     <button 
                       className="color-preview-button sidebar-button" 
-                      onClick={() => setOpenPicker(openPicker === 'bboxLocal' ? null : 'bboxLocal')}
+                      onClick={() => setOpenPicker(openPicker === 'vertex' ? null : 'vertex')}
                     >
-                      <div className="color-swatch" style={{background: bboxLocalColor}} />
+                      <div className="color-swatch" style={{background: activeSettings.vertexColor}} />
                     </button>
-                    <span className="tool-button-label">BBox Color</span>
+                    {openPicker === 'vertex' && (
+                      <PortalTooltip anchorRef={previewVertexRef as any}>
+                        <div>
+                          <ColorWheel currentColor={activeSettings.vertexColor} size={140} 
+                            onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
+                          <RgbInputs color={activeSettings.vertexColor} 
+                            onColorChange={(c) => setActiveSettings(prev => ({ ...prev, vertexColor: c }))} />
+                        </div>
+                      </PortalTooltip>
+                    )}
                   </div>
-                  
-                  {openPicker === 'bboxLocal' && (
-                    <div className="color-tooltip bbox-tooltip-adjust">
-                      <ColorWheel currentColor={bboxLocalColor} size={140} onColorSelect={(c) => setBboxLocalColor(c)} />
-                      <RgbInputs color={bboxLocalColor} onColorChange={(c) => setBboxLocalColor(c)} />
-                    </div>
-                  )}
                 </div>
               </div>
-            </div>
+              <div className="input-row slider-row-adjustment">
+                <label>Tamaño de Vértices</label>
+                <div className="slider-container">
+                  <input 
+                    type="range" 
+                    min={1} 
+                    max={10} 
+                    value={activeSettings.vertexSize} 
+                    onChange={(e) => setActiveSettings(prev => ({ ...prev, vertexSize: parseInt(e.target.value) }))} 
+                  />
+                  <span className="slider-value">{activeSettings.vertexSize}</span>
+                </div>
+              </div>
+              </>
+            )}
+                        
+            {activeSettings.wireframe && (
+              <div className="input-row">
+                <label>Color de Wireframe</label>
+                <div className="color-picker-relative-container">
+                    <div className="preview-group" ref={previewWireframeRef as any}>
+                    <button 
+                      className="color-preview-button sidebar-button" 
+                      onClick={() => setOpenPicker(openPicker === 'wireframe' ? null : 'wireframe')}
+                    >
+                      <div className="color-swatch" style={{background: '#ffffff'}} />
+                    </button>
+                    {openPicker === 'wireframe' && (
+                      <PortalTooltip anchorRef={previewWireframeRef as any}>
+                        <div>
+                          <ColorWheel currentColor={'#ffffff'} size={140} onColorSelect={(c) => {/* set wireframe color */}} />
+                          <RgbInputs color={'#ffffff'} onColorChange={(c) => {/* set wireframe color */}} />
+                        </div>
+                      </PortalTooltip>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <div className="tool-button-wrapper delete-wrapper">
-              <button className="sidebar-button delete-btn" title="Eliminar Sub-malla" onClick={() => {
-                if (selectedMeshId !== null) {
-                  setMeshes(prev => prev.filter(m => m.id !== selectedMeshId));
-                  if (setSelectedMeshId) setSelectedMeshId(null);
-                }
-              }}>
-                <ion-icon name="trash-outline"></ion-icon>
+            {activeSettings.normals && (
+              <div className="input-row">
+                <label>Color de Normales</label>
+                <div className="color-picker-relative-container">
+                  <div className="preview-group" ref={previewNormalsRef as any}>
+                    <button 
+                      className="color-preview-button sidebar-button" 
+                      onClick={() => setOpenPicker(openPicker === 'normals' ? null : 'normals')}
+                    >
+                      <div className="color-swatch" style={{background: activeSettings.normalsColor}} />
+                    </button>
+                    {openPicker === 'normals' && (
+                      <PortalTooltip anchorRef={previewNormalsRef as any}>
+                        <div>
+                          <ColorWheel currentColor={activeSettings.normalsColor} size={140} 
+                            onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
+                          <RgbInputs color={activeSettings.normalsColor} 
+                            onColorChange={(c) => setActiveSettings(prev => ({ ...prev, normalsColor: c }))} />
+                        </div>
+                      </PortalTooltip>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSettings.bbox && (
+              <div className="input-row">
+                <label>Color de Bounding Box Global</label>
+                <div className="color-picker-relative-container">
+                  <div className="preview-group" ref={previewBBoxGlobalRef as any}>
+                    <button 
+                      className="color-preview-button sidebar-button" 
+                      onClick={() => setOpenPicker(openPicker === 'bboxGlobal' ? null : 'bboxGlobal')}
+                    >
+                      <div className="color-swatch" style={{background: bboxGlobalColor}} />
+                    </button>
+                    {openPicker === 'bboxGlobal' && (
+                      <PortalTooltip anchorRef={previewBBoxGlobalRef as any} preferUp={true}>
+                        <div>
+                          <ColorWheel currentColor={bboxGlobalColor} size={140} onColorSelect={(c) => setBboxGlobalColor(c)} />
+                          <RgbInputs color={bboxGlobalColor} onColorChange={(c) => setBboxGlobalColor(c)} />
+                        </div>
+                      </PortalTooltip>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+        </div>
+        )}
+
+        <div className="sidebar-separator" />
+        
+        <h3 className="section-title">Transformaciones</h3>
+
+          <div className="transform-group">
+              <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
+              <div className="xyz-inputs">
+                <input type="number" placeholder="X" step="0.1" value={translateGlobalX} onChange={(e) => {
+                  const v = e.target.value; setTranslateGlobalX(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] })));
+                }} />
+                <input type="number" placeholder="Y" step="0.1" value={translateGlobalY} onChange={(e) => {
+                  const v = e.target.value; setTranslateGlobalY(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] })));
+                }} />
+                <input type="number" placeholder="Z" step="0.1" value={translateGlobalZ} onChange={(e) => {
+                  const v = e.target.value; setTranslateGlobalZ(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] })));
+                }} />
+              </div>
+          </div>
+
+          <div className="transform-group">
+              <label className="label-small">Escala del Objeto (X, Y, Z)</label>
+              <div className="xyz-inputs">
+                <input type="number" placeholder="X" step="0.1" value={scaleX} onChange={(e) => {
+                  const v = e.target.value; setScaleX(v);
+                  const num = parseFloat(v) || 1;
+                  setMeshes(prev => prev.map(mesh => ({
+                    ...mesh,
+                    scale: Array.isArray(mesh.scale) 
+                      ? [num, mesh.scale[1] || 1, mesh.scale[2] || 1]
+                      : [num, mesh.scale || 1, mesh.scale || 1]
+                  })));
+                }} />
+                <input type="number" placeholder="Y" step="0.1" value={scaleY} onChange={(e) => {
+                  const v = e.target.value; setScaleY(v);
+                  const num = parseFloat(v) || 1;
+                  setMeshes(prev => prev.map(mesh => ({
+                    ...mesh,
+                    scale: Array.isArray(mesh.scale) 
+                      ? [mesh.scale[0] || 1, num, mesh.scale[2] || 1]
+                      : [mesh.scale || 1, num, mesh.scale || 1]
+                  })));
+                }} />
+                <input type="number" placeholder="Z" step="0.1" value={scaleZ} onChange={(e) => {
+                  const v = e.target.value; setScaleZ(v);
+                  const num = parseFloat(v) || 1;
+                  setMeshes(prev => prev.map(mesh => ({
+                    ...mesh,
+                    scale: Array.isArray(mesh.scale) 
+                      ? [mesh.scale[0] || 1, mesh.scale[1] || 1, num]
+                      : [mesh.scale || 1, mesh.scale || 1, num]
+                  })));
+                }} />
+              </div>
+          </div>
+
+          <div className="transform-group">
+            <label className="label-small">Rotación del Objeto X, Y, Z (grados)</label>
+            <label className="label-small-small">Presione el click derecho y arrastre la figura para activar la rotación.</label>
+
+            <div className="rotation-row">
+              <div className="xyz-inputs">
+                <div className="xyz-input-with-unit">
+                  <input
+                    type="number"
+                    placeholder="X"
+                    step={1}
+                    value={rotateX}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRotateX(v);
+                      const num = parseFloat(v) || 0;
+                      // actualizar rotación global (Euler grados)
+                      setGlobalRotationDegrees(num, parseFloat(rotateY) || 0, parseFloat(rotateZ) || 0);
+                      // Forzar redraw
+                      setMeshes(prev => prev.map(m => ({ ...m })));
+                    }}
+                  />
+                  <span className="xyz-unit">°</span>
+                </div>
+
+                <div className="xyz-input-with-unit">
+                  <input
+                    type="number"
+                    placeholder="Y"
+                    step={1}
+                    value={rotateY}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRotateY(v);
+                      const num = parseFloat(v) || 0;
+                      setGlobalRotationDegrees(parseFloat(rotateX) || 0, num, parseFloat(rotateZ) || 0);
+                      setMeshes(prev => prev.map(m => ({ ...m })));
+                    }}
+                  />
+                  <span className="xyz-unit">°</span>
+                </div>
+
+                <div className="xyz-input-with-unit">
+                  <input
+                    type="number"
+                    placeholder="Z"
+                    step={1}
+                    value={rotateZ}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRotateZ(v);
+                      const num = parseFloat(v) || 0;
+                      setGlobalRotationDegrees(parseFloat(rotateX) || 0, parseFloat(rotateY) || 0, num);
+                      setMeshes(prev => prev.map(m => ({ ...m })));
+                    }}
+                  />
+                  <span className="xyz-unit">°</span>
+                </div>
+              </div>
+
+              <button
+                className="sidebar-button rotation-reset-btn"
+                title="Resetear rotación"
+                onClick={() => {
+                  // Resetear rotación global (cuaternión) y sincronizar inputs
+                  resetGlobalRotation();
+                  setRotateX('0');
+                  setRotateY('0');
+                  setRotateZ('0');
+                  // Forzar redraw
+                  setMeshes((prev) => prev.map(m => ({ ...m })));
+                }}
+              >
+                <ion-icon name="refresh-outline"></ion-icon>
               </button>
-              <span className="tool-button-label">Eliminar</span>
+              <button
+                className="sidebar-button rotation-reset-btn"
+                title="Deshacer última rotación global"
+                onClick={() => {
+                  undoGlobalRotation();
+                  // Forzar redraw actualizando meshes sin cambiar datos
+                  setMeshes(prev => prev.map(m => ({ ...m })));
+                }}
+              >
+                <ion-icon name="return-up-back-outline"></ion-icon>
+              </button>
             </div>
           </div>
 
         </div>
-      )}
+
+        <div className="sidebar-separator" />
+
+        {/* SECCIÓN 4: SUB-MALLA SELECCIONADA (Solo si hay selección vía Picking) */}
+        {selectedMeshId !== null && !activeSettings.bbox && (
+          <div className="sidebar-section selection-box">
+            <h3 className="section-title">Sub-malla Seleccionada</h3>
+
+            <div className="input-row">
+              <p className="selection-id">ID: {selectedMeshId}</p>
+              <label>Color Sub-malla</label>
+              <div className="color-picker-relative-container">
+                <div className="preview-group" ref={previewKdRef as any}>
+                  <button
+                    className="color-preview-button sidebar-button"
+                    onClick={() => setOpenPicker(openPicker === 'kd' ? null : 'kd')}
+                  >
+                    <div className="color-swatch" style={{ background: kdColor }} />
+                  </button>
+                  {openPicker === 'kd' && (
+                    <PortalTooltip anchorRef={previewKdRef as any}>
+                      <div>
+                        <ColorWheel
+                          currentColor={kdColor}
+                          size={140}
+                          onColorSelect={(c) => {
+                            setKdColor(c);
+                            // actualizar color en meshes
+                            setMeshes(prevMeshes =>
+                              prevMeshes.map(m =>
+                                m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                              )
+                            );
+                          }}
+                        />
+                        <RgbInputs
+                          color={kdColor}
+                          onColorChange={(c) => {
+                            setKdColor(c);
+                            setMeshes(prevMeshes =>
+                              prevMeshes.map(m =>
+                                m.id === selectedMeshId ? { ...m, color: rgbaStringToNormalizedArray(c) } : m
+                              )
+                            );
+                          }}
+                        />
+                      </div>
+                    </PortalTooltip>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="transform-group">
+              <label className="label-small">Traslación de la Sub-Malla (X, Y, Z)</label>
+              <div className="xyz-inputs">
+                <input type="number" placeholder="X" step="0.1" value={translateLocalX} onChange={(e) => {
+                  const v = e.target.value; setTranslateLocalX(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] } : m));
+                }} />
+                <input type="number" placeholder="Y" step="0.1" value={translateLocalY} onChange={(e) => {
+                  const v = e.target.value; setTranslateLocalY(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] } : m));
+                }} />
+                <input type="number" placeholder="Z" step="0.1" value={translateLocalZ} onChange={(e) => {
+                  const v = e.target.value; setTranslateLocalZ(v);
+                  const num = parseFloat(v) || 0;
+                  setMeshes(prev => prev.map(m => m.id === selectedMeshId ? { ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] } : m));
+                }} />
+              </div>
+            </div>
+
+            <div className="mesh-actions-row mt-10">
+              <div className="bbox-local-group">
+                <div className="tool-button-wrapper">
+                  <button 
+                    className={`sidebar-button ${activeSettings.bboxlocal ? 'active' : ''}`} 
+                    title="BBox Local"
+                    onClick={() => toggleSetting('bboxlocal')}
+                  >
+                    <ion-icon name="scan-outline"></ion-icon>
+                  </button>
+                  <span className="tool-button-label">BBox Local</span>
+                </div>
+
+                {/* Selector de color para BBox Local */}
+                <div className="color-picker-relative-container">
+                  <div className="preview-group" ref={previewBBoxLocalRef as any}>
+                    <div className="tool-button-wrapper">
+                      <button 
+                        className="color-preview-button sidebar-button" 
+                        onClick={() => setOpenPicker(openPicker === 'bboxLocal' ? null : 'bboxLocal')}
+                      >
+                        <div className="color-swatch" style={{background: bboxLocalColor}} />
+                      </button>
+                      <span className="tool-button-label">BBox Color</span>
+                    </div>
+                    
+                    {openPicker === 'bboxLocal' && (
+                      <PortalTooltip anchorRef={previewBBoxLocalRef as any} className="color-tooltip bbox-tooltip-adjust" preferUp={true}>
+                        <div>
+                          <ColorWheel currentColor={bboxLocalColor} size={140} onColorSelect={(c) => setBboxLocalColor(c)} />
+                          <RgbInputs color={bboxLocalColor} onColorChange={(c) => setBboxLocalColor(c)} />
+                        </div>
+                      </PortalTooltip>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="tool-button-wrapper delete-wrapper">
+                <button className="sidebar-button delete-btn" title="Eliminar Sub-malla" onClick={() => {
+                  if (selectedMeshId !== null) {
+                    setMeshes(prev => prev.filter(m => m.id !== selectedMeshId));
+                    if (setSelectedMeshId) setSelectedMeshId(null);
+                  }
+                }}>
+                  <ion-icon name="trash-outline"></ion-icon>
+                </button>
+                <span className="tool-button-label">Eliminar</span>
+              </div>
+            </div>
+
+          </div>
+        )}
+      </div>
 
       {/* BOTÓN GITHUB AL FINAL */}
       <div className="sidebar-footer">
