@@ -5,6 +5,7 @@ let gl: WebGLRenderingContext | null = null;
 let renderProgram: WebGLProgram | null = null;
 let pickingProgram: WebGLProgram | null = null;
 let lineProgram: WebGLProgram | null = null;
+let pointProgram: WebGLProgram | null = null;
 
 // Rotación global (cuaternión) y pila de deshacer
 let globalQuat = quat.create();
@@ -230,9 +231,13 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
       for (let i = 0; i < 3; i++) {
         const vidx = verts[i];
         flatVerts.push(...mesh.vertices[vidx]);
-        
-        if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!]) {
-          // Usar normal del archivo si existe
+
+        // Preferir normales por vértice (mesh.normals con longitud == vertices.length)
+        if (mesh.normals && mesh.normals.length === mesh.vertices.length) {
+          const n = mesh.normals[vidx] || [0,0,1];
+          flatNormals.push(n[0], n[1], n[2]);
+        } else if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!]) {
+          // Usar normal indicada en la cara (índice de normal)
           const normal = mesh.normals[norms[i]!]!;
           flatNormals.push(...normal);
         } else {
@@ -267,8 +272,10 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
         for (const t of tri) {
           const vidx = verts[t];
           flatVerts.push(...mesh.vertices[vidx]);
-          
-          if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!]) {
+          if (mesh.normals && mesh.normals.length === mesh.vertices.length) {
+            const n = mesh.normals[vidx] || [0,0,1];
+            flatNormals.push(n[0], n[1], n[2]);
+          } else if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!]) {
             const normal = mesh.normals[norms[t]!]!;
             flatNormals.push(...normal);
           } else {
@@ -419,6 +426,8 @@ export function redraw(
   bboxColor?: [number, number, number],
   showGlobalBBox?: boolean,
   globalBBoxColor?: [number, number, number]
+  ,
+  activeSettings?: any
 ) {
   console.log("redraw llamado con:", { 
     meshesCount: meshes.length, 
@@ -446,7 +455,42 @@ export function redraw(
   }
 
   meshes.forEach(m => {
+    // Antes de dibujar, asegurarnos de que haya normales por vértice si es necesario
+    try {
+      if ((!m.normals || m.normals.length === 0) && m.vertices && m.vertices.length > 0) {
+        // compute and attach per-vertex normals (O(n))
+        computePerVertexNormals(m);
+      }
+    } catch (e) {
+      console.warn('Error computing vertex normals', e);
+    }
+
+    // Dibujar la malla rellena (con polygon offset si vamos a superponer líneas/puntos)
+    const needOverlay = !!(activeSettings && (activeSettings.wireframe || activeSettings.vertex || activeSettings.normals));
+    if (needOverlay) {
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(1.0, 1.0);
+    }
     drawMesh(m);
+    if (needOverlay) {
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+    }
+
+    // Wireframe overlay
+    if (activeSettings && activeSettings.wireframe) {
+      drawWireframe(m, activeSettings.wireframeColor || [1,1,1]);
+    }
+
+    // Vertices overlay
+    if (activeSettings && activeSettings.vertex) {
+      drawPoints(m, activeSettings.vertexColor || [1,1,1], activeSettings.vertexSize || 3);
+    }
+
+    // Normals overlay
+    if (activeSettings && activeSettings.normals) {
+      const percent = (activeSettings.normalsLengthPercent !== undefined) ? activeSettings.normalsLengthPercent : 0.05;
+      drawNormals(m, activeSettings.normalsColor || [0,1,0], percent);
+    }
   });
 
   // Dibujar BBox local si hay una malla seleccionada
@@ -566,6 +610,230 @@ function getFullMVP(mesh: Mesh): mat4 {
   mat4.multiply(mvp, projection, tmp2);
   
   return mvp;
+}
+
+// Compute per-vertex normals by averaging face normals (O(n))
+function computePerVertexNormals(mesh: Mesh) {
+  const vCount = mesh.vertices.length;
+  const accum: number[][] = new Array(vCount);
+  const counts: number[] = new Array(vCount).fill(0);
+  for (let i = 0; i < vCount; i++) accum[i] = [0,0,0];
+
+  mesh.faces.forEach(face => {
+    const verts = face.v;
+    if (verts.length < 3) return;
+
+    // Triangularizar en abanico
+    for (let i = 1; i < verts.length - 1; i++) {
+      const i0 = verts[0], i1 = verts[i], i2 = verts[i+1];
+      const v0 = mesh.vertices[i0];
+      const v1 = mesh.vertices[i1];
+      const v2 = mesh.vertices[i2];
+
+      const edge1 = [v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]];
+      const edge2 = [v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]];
+      const nx = edge1[1]*edge2[2] - edge1[2]*edge2[1];
+      const ny = edge1[2]*edge2[0] - edge1[0]*edge2[2];
+      const nz = edge1[0]*edge2[1] - edge1[1]*edge2[0];
+      const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+      const fn = [nx/len, ny/len, nz/len];
+
+      [i0, i1, i2].forEach(idx => {
+        accum[idx][0] += fn[0];
+        accum[idx][1] += fn[1];
+        accum[idx][2] += fn[2];
+        counts[idx]++;
+      });
+    }
+  });
+
+  const result: number[][] = new Array(vCount);
+  for (let i = 0; i < vCount; i++) {
+    const c = counts[i] || 1;
+    const ax = accum[i][0] / c;
+    const ay = accum[i][1] / c;
+    const az = accum[i][2] / c;
+    const l = Math.sqrt(ax*ax + ay*ay + az*az) || 1;
+    result[i] = [ax / l, ay / l, az / l];
+  }
+
+  mesh.normals = result;
+}
+
+function ensureLineProgram() {
+  if (lineProgram) return;
+  const lineVsSource = `
+      attribute vec3 aPosition;
+      uniform mat4 uMVP;
+      void main() {
+        gl_Position = uMVP * vec4(aPosition, 1.0);
+      }
+    `;
+  const lineFsSource = `
+      precision mediump float;
+      uniform vec3 uColor;
+      void main() {
+        gl_FragColor = vec4(uColor, 1.0);
+      }
+    `;
+  lineProgram = createProgram(lineVsSource, lineFsSource);
+}
+
+function ensurePointProgram() {
+  if (pointProgram) return;
+  const vs = `
+    attribute vec3 aPosition;
+    uniform mat4 uMVP;
+    uniform float uPointSize;
+    void main() {
+      gl_Position = uMVP * vec4(aPosition, 1.0);
+      gl_PointSize = uPointSize;
+    }
+  `;
+  const fs = `
+    precision mediump float;
+    uniform vec3 uColor;
+    void main() {
+      gl_FragColor = vec4(uColor, 1.0);
+    }
+  `;
+  pointProgram = createProgram(vs, fs);
+}
+
+// Draw wireframe by extracting unique edges (lines in model space, transformed by uMVP)
+function drawWireframe(mesh: Mesh, color: [number, number, number]) {
+  if (!gl) return;
+  ensureLineProgram();
+  if (!lineProgram) return;
+  gl.useProgram(lineProgram);
+
+  // Build unique edges
+  const edgeSet = new Set<string>();
+  const lines: number[] = [];
+  mesh.faces.forEach(face => {
+    const verts = face.v;
+    if (verts.length < 3) return;
+    // fan triangulation
+    for (let i = 1; i < verts.length - 1; i++) {
+      const tri = [verts[0], verts[i], verts[i+1]];
+      const pairs = [[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];
+      pairs.forEach(p => {
+        const a = Math.min(p[0], p[1]);
+        const b = Math.max(p[0], p[1]);
+        const key = a+"_"+b;
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key);
+          const va = mesh.vertices[a];
+          const vb = mesh.vertices[b];
+          lines.push(va[0], va[1], va[2], vb[0], vb[1], vb[2]);
+        }
+      });
+    }
+  });
+
+  const aPosition = gl.getAttribLocation(lineProgram, 'aPosition');
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+  if (aPosition >= 0) {
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const uColor = gl.getUniformLocation(lineProgram, 'uColor');
+  if (uColor) gl.uniform3fv(uColor, new Float32Array(color));
+
+  const uMVP = gl.getUniformLocation(lineProgram, 'uMVP');
+  if (uMVP) gl.uniformMatrix4fv(uMVP, false, getFullMVP(mesh));
+
+  gl.drawArrays(gl.LINES, 0, lines.length / 3);
+}
+
+function drawPoints(mesh: Mesh, color: [number, number, number], size: number) {
+  if (!gl) return;
+  ensurePointProgram();
+  if (!pointProgram) return;
+  gl.useProgram(pointProgram);
+
+  const flat: number[] = [];
+  mesh.vertices.forEach(v => flat.push(v[0], v[1], v[2]));
+
+  const aPosition = gl.getAttribLocation(pointProgram, 'aPosition');
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flat), gl.STATIC_DRAW);
+  if (aPosition >= 0) {
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const uColor = gl.getUniformLocation(pointProgram, 'uColor');
+  if (uColor) gl.uniform3fv(uColor, new Float32Array(color));
+  const uPointSize = gl.getUniformLocation(pointProgram, 'uPointSize');
+  if (uPointSize) gl.uniform1f(uPointSize, size);
+
+  const uMVP = gl.getUniformLocation(pointProgram, 'uMVP');
+  if (uMVP) gl.uniformMatrix4fv(uMVP, false, getFullMVP(mesh));
+
+  gl.drawArrays(gl.POINTS, 0, mesh.vertices.length);
+}
+
+// Compute world-space diagonal (after model + global transforms) and draw normals with given percent
+function getWorldBBoxDiagonal(mesh: Mesh) {
+  const bbox = computeBoundingBox(mesh);
+  const [mx0, my0, mz0] = bbox.min;
+  const [mx1, my1, mz1] = bbox.max;
+  const corners = [
+    [mx0,my0,mz0],[mx1,my0,mz0],[mx1,my1,mz0],[mx0,my1,mz0],[mx0,my0,mz1],[mx1,my0,mz1],[mx1,my1,mz1],[mx0,my1,mz1]
+  ];
+  const model = calculateModelMatrix(mesh);
+  const tmp = vec4.create();
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  corners.forEach(c => {
+    vec4.transformMat4(tmp, vec4.fromValues(c[0],c[1],c[2],1), model);
+    const tx = tmp[0], ty = tmp[1], tz = tmp[2];
+    minX = Math.min(minX, tx); minY = Math.min(minY, ty); minZ = Math.min(minZ, tz);
+    maxX = Math.max(maxX, tx); maxY = Math.max(maxY, ty); maxZ = Math.max(maxZ, tz);
+  });
+  const dx = maxX - minX, dy = maxY - minY, dz = maxZ - minZ;
+  return Math.sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+function drawNormals(mesh: Mesh, color: [number, number, number], percent: number) {
+  if (!gl) return;
+  ensureLineProgram();
+  if (!lineProgram) return;
+  gl.useProgram(lineProgram);
+
+  // Ensure per-vertex normals
+  if (!mesh.normals || mesh.normals.length === 0) computePerVertexNormals(mesh);
+
+  const diagonal = getWorldBBoxDiagonal(mesh) || 1.0;
+  const length = diagonal * percent;
+
+  const lines: number[] = [];
+  for (let i = 0; i < mesh.vertices.length; i++) {
+    const v = mesh.vertices[i];
+    const n = mesh.normals && mesh.normals[i] ? mesh.normals[i] : [0,0,1];
+    lines.push(v[0], v[1], v[2], v[0] + n[0]*length, v[1] + n[1]*length, v[2] + n[2]*length);
+  }
+
+  const aPosition = gl.getAttribLocation(lineProgram, 'aPosition');
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+  if (aPosition >= 0) {
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const uColor = gl.getUniformLocation(lineProgram, 'uColor');
+  if (uColor) gl.uniform3fv(uColor, new Float32Array(color));
+
+  const uMVP = gl.getUniformLocation(lineProgram, 'uMVP');
+  if (uMVP) gl.uniformMatrix4fv(uMVP, false, getFullMVP(mesh));
+
+  gl.drawArrays(gl.LINES, 0, lines.length / 3);
 }
 
 export function drawBoundingBox(mesh: any, color: [number, number, number]) {

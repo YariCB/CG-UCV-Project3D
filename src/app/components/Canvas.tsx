@@ -91,7 +91,8 @@ const Canvas: React.FC<CanvasProps> = ({
       localMeshId, 
       bboxRgb,
       activeSettings.bbox,
-      globalBBoxRgb
+      globalBBoxRgb,
+      activeSettings
     );
     // Asegurar que la cámara actual se propague (por si cambió fuera)
     setCamera(cameraPosRef.current, frontRef.current, upRef.current);
