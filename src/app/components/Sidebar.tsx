@@ -754,7 +754,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <input 
                     type="range" 
                     min={1} 
-                    max={10} 
+                    max={20} 
                     value={activeSettings.vertexSize} 
                     onChange={(e) => setActiveSettings(prev => ({ ...prev, vertexSize: parseInt(e.target.value) }))} 
                   />
@@ -773,13 +773,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                       className="color-preview-button sidebar-button" 
                       onClick={() => setOpenPicker(openPicker === 'wireframe' ? null : 'wireframe')}
                     >
-                      <div className="color-swatch" style={{background: '#ffffff'}} />
+                      <div className="color-swatch" style={{background: activeSettings.wireframeColor}} />
                     </button>
                     {openPicker === 'wireframe' && (
                       <PortalTooltip anchorRef={previewWireframeRef as any}>
                         <div>
-                          <ColorWheel currentColor={'#ffffff'} size={140} onColorSelect={(c) => {/* set wireframe color */}} />
-                          <RgbInputs color={'#ffffff'} onColorChange={(c) => {/* set wireframe color */}} />
+                          <ColorWheel currentColor={activeSettings.wireframeColor} size={140} onColorSelect={(c) => setActiveSettings(prev => ({ ...prev, wireframeColor: c }))} />
+                          <RgbInputs color={activeSettings.wireframeColor} onColorChange={(c) => setActiveSettings(prev => ({ ...prev, wireframeColor: c }))} />
                         </div>
                       </PortalTooltip>
                     )}

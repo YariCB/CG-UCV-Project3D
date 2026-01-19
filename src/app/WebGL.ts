@@ -478,18 +478,22 @@ export function redraw(
 
     // Wireframe overlay
     if (activeSettings && activeSettings.wireframe) {
-      drawWireframe(m, activeSettings.wireframeColor || [1,1,1]);
+      const wfColor = parseColorInput(activeSettings.wireframeColor || 'rgba(255,255,255,1)');
+      drawWireframe(m, wfColor);
     }
 
     // Vertices overlay
     if (activeSettings && activeSettings.vertex) {
-      drawPoints(m, activeSettings.vertexColor || [1,1,1], activeSettings.vertexSize || 3);
+      const vColor = parseColorInput(activeSettings.vertexColor || 'rgb(23,178,209)');
+      const vSize = activeSettings.vertexSize || 3;
+      drawPoints(m, vColor, vSize);
     }
 
     // Normals overlay
     if (activeSettings && activeSettings.normals) {
       const percent = (activeSettings.normalsLengthPercent !== undefined) ? activeSettings.normalsLengthPercent : 0.05;
-      drawNormals(m, activeSettings.normalsColor || [0,1,0], percent);
+      const nColor = parseColorInput(activeSettings.normalsColor || 'rgb(0,0,255)');
+      drawNormals(m, nColor, percent);
     }
   });
 
@@ -610,6 +614,25 @@ function getFullMVP(mesh: Mesh): mat4 {
   mat4.multiply(mvp, projection, tmp2);
   
   return mvp;
+}
+
+function parseColorInput(c: any): [number, number, number] {
+  if (!c) return [1,1,1];
+  if (Array.isArray(c)) return [c[0], c[1], c[2]];
+  if (typeof c === 'string') {
+    // accept formats: rgba(r,g,b,a) or rgb(r,g,b) or #rrggbb
+    const rgba = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (rgba) {
+      return [parseInt(rgba[1])/255, parseInt(rgba[2])/255, parseInt(rgba[3])/255];
+    }
+    // hex
+    const hex = c.replace('#','');
+    if (/^[0-9A-Fa-f]{6}$/.test(hex)) {
+      const bigint = parseInt(hex, 16);
+      return [(bigint>>16 & 255)/255, (bigint>>8 & 255)/255, (bigint & 255)/255];
+    }
+  }
+  return [1,1,1];
 }
 
 // Compute per-vertex normals by averaging face normals (O(n))

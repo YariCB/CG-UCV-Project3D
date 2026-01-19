@@ -12,9 +12,11 @@ type ActiveSettings = {
 	bbox: boolean;
 	bboxlocal: boolean;
 	wireframe: boolean;
-	vertices: boolean;
+	vertex: boolean;
 	vertexColor: string;
 	vertexSize: number;
+	wireframeColor?: string;
+	normalsLengthPercent?: number;
 }
 
 const App: React.FC = () => {
@@ -35,9 +37,10 @@ const App: React.FC = () => {
 		bbox: false,
 		bboxlocal: false,
 		wireframe: false,
-		vertices: false,
+		vertex: false,
 		vertexColor: 'rgb(23, 178, 209)',
 		vertexSize: 3,
+		wireframeColor: 'rgba(255,255,255,1)'
 	});
 
 	const toggleBBoxLocal = useCallback(() => {
