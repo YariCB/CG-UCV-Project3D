@@ -109,7 +109,7 @@ const Canvas: React.FC<CanvasProps> = ({
     const px = Math.floor(Math.max(0, Math.min(x, canvas.width - 1)));
     const py = Math.floor(Math.max(0, Math.min(y, canvas.height - 1)));
     
-    const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
+    const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor), activeSettings);
 
     // Si el botón derecho está presionado, iniciar rotación global
     if (e.button === 2) {
@@ -405,8 +405,8 @@ const Canvas: React.FC<CanvasProps> = ({
     const px = Math.floor(Math.max(0, Math.min(x, canvas.width - 1)));
     const py = Math.floor(Math.max(0, Math.min(y, canvas.height - 1)));
     
-    const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor));
-    console.log("Click → ID:", pickedId, "Current:", selectedMeshId);
+    const pickedId = pickAt(px, py, canvas, meshes, parseRgba(bgColor), activeSettings);
+    console.log("Click → ID:", pickedId, "Current:", selectedMeshId, "Wireframe:", activeSettings.wireframe);
     
     if (pickedId !== null) {
       if (pickedId === selectedMeshId) {
@@ -475,7 +475,7 @@ const Canvas: React.FC<CanvasProps> = ({
         cameraPosRef.current = [pos[0] - f[0]*speed, pos[1] - f[1]*speed, pos[2] - f[2]*speed];
         setCamera(cameraPosRef.current, frontRef.current, upRef.current);
         setDragCounter(c => c + 1);
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowLeft') {
         yawRef.current -= 5;
         const yawRad = yawRef.current * Math.PI / 180;
         const pitchRad = pitchRef.current * Math.PI / 180;
@@ -486,7 +486,7 @@ const Canvas: React.FC<CanvasProps> = ({
         frontRef.current = [fx/len, fy/len, fz/len];
         setCamera(cameraPosRef.current, frontRef.current, upRef.current);
         setDragCounter(c => c + 1);
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowRight') {
         yawRef.current += 5;
         const yawRad = yawRef.current * Math.PI / 180;
         const pitchRad = pitchRef.current * Math.PI / 180;

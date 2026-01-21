@@ -425,15 +425,15 @@ export function redraw(
   selectedMeshId?: number | null, 
   bboxColor?: [number, number, number],
   showGlobalBBox?: boolean,
-  globalBBoxColor?: [number, number, number]
-  ,
+  globalBBoxColor?: [number, number, number],
   activeSettings?: any
 ) {
   console.log("redraw llamado con:", { 
     meshesCount: meshes.length, 
     selectedMeshId, 
     bboxColor, 
-    showGlobalBBox 
+    showGlobalBBox,
+    wireframe: activeSettings?.wireframe
   });
   
   if (!gl || !renderProgram) {
@@ -465,21 +465,22 @@ export function redraw(
       console.warn('Error computing vertex normals', e);
     }
 
-    // Dibujar la malla rellena (con polygon offset si vamos a superponer líneas/puntos)
-    const needOverlay = !!(activeSettings && (activeSettings.wireframe || activeSettings.vertex || activeSettings.normals));
-    if (needOverlay) {
-      gl.enable(gl.POLYGON_OFFSET_FILL);
-      gl.polygonOffset(1.0, 1.0);
-    }
-    drawMesh(m);
-    if (needOverlay) {
-      gl.disable(gl.POLYGON_OFFSET_FILL);
-    }
-
-    // Wireframe overlay
+    // Dibujar la malla sin relleno
     if (activeSettings && activeSettings.wireframe) {
+      // Solo dibujar wireframe - No dibujar el relleno
       const wfColor = parseColorInput(activeSettings.wireframeColor || 'rgba(255,255,255,1)');
       drawWireframe(m, wfColor);
+    } else {
+      // Wireframe desactivado: dibujar el relleno normal
+      const needOverlay = !!(activeSettings && (activeSettings.vertex || activeSettings.normals));
+      if (needOverlay) {
+        gl.enable(gl.POLYGON_OFFSET_FILL);
+        gl.polygonOffset(1.0, 1.0);
+      }
+      drawMesh(m);
+      if (needOverlay) {
+        gl.disable(gl.POLYGON_OFFSET_FILL);
+      }
     }
 
     // Vertices overlay
@@ -563,7 +564,7 @@ function renderForPicking(meshes: Mesh[]) {
 }
 
 // Renderiza pasada de picking, lee el pixel y luego RESTAURA la escena normal
-export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0]): number | null {
+export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: Mesh[], bgColor: [number, number, number, number] = [0,0,0,0], activeSettings?: any): number | null {
   if (!gl) return null;
 
   // Pasada de picking
@@ -576,7 +577,7 @@ export function pickAt(x: number, y: number, canvas: HTMLCanvasElement, meshes: 
   const result = id === 0 ? null : id;
 
   // Restaurar escena normal
-  redraw(meshes, bgColor);
+  redraw(meshes, bgColor, undefined, undefined, undefined, undefined, activeSettings);
 
   return result;
 }
