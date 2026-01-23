@@ -465,13 +465,8 @@ export function redraw(
       console.warn('Error computing vertex normals', e);
     }
 
-    // Dibujar la malla sin relleno
-    if (activeSettings && activeSettings.wireframe) {
-      // Solo dibujar wireframe - No dibujar el relleno
-      const wfColor = parseColorInput(activeSettings.wireframeColor || 'rgba(255,255,255,1)');
-      drawWireframe(m, wfColor);
-    } else {
-      // Wireframe desactivado: dibujar el relleno normal
+    // CASO 1: Solo relleno (wireframe desactivado)
+    if (activeSettings?.filling && !activeSettings?.wireframe) {
       const needOverlay = !!(activeSettings && (activeSettings.vertex || activeSettings.normals));
       if (needOverlay) {
         gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -481,6 +476,27 @@ export function redraw(
       if (needOverlay) {
         gl.disable(gl.POLYGON_OFFSET_FILL);
       }
+    }
+    // CASO 2: Solo wireframe (relleno desactivado)
+    else if (!activeSettings?.filling && activeSettings?.wireframe) {
+      const wfColor = parseColorInput(activeSettings.wireframeColor || 'rgba(255,255,255,1)');
+      drawWireframe(m, wfColor);
+    }
+    // CASO 3: Ambos activados (wireframe sobre relleno)
+    else if (activeSettings?.filling && activeSettings?.wireframe) {
+      // Primero dibujar el relleno
+      drawMesh(m);
+      // Luego dibujar wireframe sobre el relleno
+      const wfColor = parseColorInput(activeSettings.wireframeColor || 'rgba(255,255,255,1)');
+      // Aplicar offset para que el wireframe se dibuje encima
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(-1.0, -1.0);
+      drawWireframe(m, wfColor);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+    }
+    // CASO 4: Ambos desactivados (no se dibuja nada)
+    else {
+      // No dibujar nada
     }
 
     // Vertices overlay

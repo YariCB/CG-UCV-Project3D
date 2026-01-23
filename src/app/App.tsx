@@ -11,6 +11,7 @@ type ActiveSettings = {
 	normalsColor: string;
 	bbox: boolean;
 	bboxlocal: boolean;
+	filling: boolean;
 	wireframe: boolean;
 	vertex: boolean;
 	vertexColor: string;
@@ -36,6 +37,7 @@ const App: React.FC = () => {
 		normalsColor: 'rgba(0, 0, 255, 1)',
 		bbox: false,
 		bboxlocal: false,
+		filling: true,
 		wireframe: false,
 		vertex: false,
 		vertexColor: 'rgb(23, 178, 209)',

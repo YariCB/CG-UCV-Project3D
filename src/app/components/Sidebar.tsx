@@ -205,11 +205,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     zBuffer: 'Z-Buffer',
     culling: 'Back-face Culling',
     vertex: 'Mostrar Vértices',
+    filling: 'Relleno',
+    wireframe: 'Wireframe',
     normals: 'Mostrar Normales',
     bbox: 'Bounding Box Global',
-    center: 'Centrar Objeto'
+    center: 'Centrar Objeto',
+    reset: 'Resetear',
   };
-  const wireframeLabel = activeSettings.wireframe ? 'Wireframe' : 'Relleno';
 
   // Centrar objeto
 
@@ -664,6 +666,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <h3 className="section-title">Visualización</h3>
           <div className="tool-group">
 
+            {/* Botón de Vértices */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.vertex ? 'active' : ''}`} 
@@ -675,17 +678,31 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.vertex}</span>
             </div>
 
+            {/* Botón de Relleno */}
+            <div className="tool-button-wrapper">
+              <button 
+                className={`sidebar-button ${activeSettings.filling ? 'active' : ''}`} 
+                title = {buttonLabels.filling}
+                onClick={() => toggleSetting('filling')}
+              >
+                <ion-icon name="square-sharp"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.filling}</span>
+            </div>
+
+            {/* Botón de Wireframe */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.wireframe ? 'active' : ''}`} 
-                title = {wireframeLabel}
+                title = {buttonLabels.wireframe}
                 onClick={() => toggleSetting('wireframe')}
               >
-                <ion-icon name={activeSettings.wireframe ? "grid-outline" : "square-sharp"}></ion-icon>
+                <ion-icon name="grid-outline"></ion-icon>
               </button>
-              <span className="tool-button-label">{wireframeLabel}</span>
+              <span className="tool-button-label">{buttonLabels.wireframe}</span>
             </div>
 
+            {/* Botón de Normales */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.normals ? 'active' : ''}`} 
@@ -697,6 +714,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.normals}</span>
             </div>
 
+            {/* Botón de Centrar */}
             <div className="tool-button-wrapper">
               <button 
                 className="sidebar-button center-btn" 
@@ -708,6 +726,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.center}</span>
             </div>
 
+            {/* Botón de Bounding Box Global */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.bbox ? 'active' : ''}`} 
@@ -718,6 +737,19 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <span className="tool-button-label">{buttonLabels.bbox}</span>
             </div>
+
+            {/* Botón de Resetear */}
+            <div className="tool-button-wrapper">
+              <button 
+                className="sidebar-button center-btn" 
+                title= {buttonLabels.reset}
+                onClick={handleCenterObject}
+              >
+                <ion-icon name="refresh-outline"></ion-icon>
+              </button>
+              <span className="tool-button-label">{buttonLabels.reset}</span>
+            </div>
+
           </div>
 
           {/* Controles dinámicos según lo activado */}

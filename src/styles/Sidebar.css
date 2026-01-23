@@ -1,7 +1,7 @@
 
 .sidebar-container {
-  width: 300px;
-  min-width: 260px;
+  width: 260px;
+  min-width: 200px;
   height: 100vh;
   padding: 10px 0;
   display: flex;
