@@ -17,6 +17,7 @@ interface CanvasProps {
   toggleBBoxLocal?: () => void;
   activeSettings?: any;
   setActiveSettings?: React.Dispatch<React.SetStateAction<any>>;
+  resetTicket?: number;
 }
 
 const Canvas: React.FC<CanvasProps> = ({ 
@@ -32,7 +33,8 @@ const Canvas: React.FC<CanvasProps> = ({
   showLocalBBox,
   toggleBBoxLocal,
   activeSettings = {},
-  setActiveSettings
+  setActiveSettings,
+  resetTicket = 0
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [dragCounter, setDragCounter] = useState(0);
@@ -97,6 +99,17 @@ const Canvas: React.FC<CanvasProps> = ({
     // Asegurar que la cámara actual se propague (por si cambió fuera)
     setCamera(cameraPosRef.current, frontRef.current, upRef.current);
   }, [meshes, bgColor, bboxColor, bboxGlobalColor, selectedMeshId, showLocalBBox, parseRgba, activeSettings]);
+
+  useEffect(() => {
+    // 1. Limpiamos la memoria del mouse para evitar saltos
+    lookLastXRef.current = null;
+    lookLastYRef.current = null;
+
+    // 2. Forzamos el redibujado con los valores reseteados de WebGL.ts
+    handleRedraw();
+    
+    console.log("Canvas: Redibujado por señal de reset");
+  }, [resetTicket, handleRedraw]);
 
   // DRAG START - mousedown sobre sub-malla seleccionada u objeto completo
   const handleMouseDown = useCallback((e: MouseEvent) => {

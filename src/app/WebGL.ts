@@ -1323,65 +1323,46 @@ export function computeTransformedBoundingBox(meshes: Mesh[]): {
   return { center, size, min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
 }
 
-// Función para centrar y normalizar el objeto
-export function centerAndNormalizeObject(meshes: Mesh[]): Mesh[] {
-  if (meshes.length === 0) return meshes;
-  
-  // 1. Calcular bounding box global transformada
+// Centrar Objeto
+
+export function centerAndNormalizeObject(meshes: any[]): any[] {
+  if (meshes.length === 0) return [];
+
+  // 1. Calcular el Bounding Box global del objeto completo en su estado actual
+  // computeTransformedBoundingBox ya considera las traslaciones y escalas individuales actuales
   const bbox = computeTransformedBoundingBox(meshes);
-  console.log("BBox antes de centrar:", bbox);
   
-  // 2. Calcular factor de escala para cubo unitario
-  // Encontrar la dimensión más grande
-  const maxSize = Math.max(bbox.size[0], bbox.size[1], bbox.size[2], 0.0001);
-  const scaleFactor = 1.0 / maxSize; // Para que quepa en cubo de 1 unidad
+  // 2. Determinar el factor de escala para que la dimensión más grande del objeto sea 1.0
+  const maxDim = Math.max(bbox.size[0], bbox.size[1], bbox.size[2]);
+  const scaleFactor = maxDim > 0 ? 1.0 / maxDim : 1.0;
   
-  // 3. Para cada mesh, aplicar transformaciones inversas y nuevas
+  // 3. Posición de destino solicitada
+  const targetTranslate: [number, number, number] = [0, 0, -3];
+
   return meshes.map(mesh => {
-    // Obtener transformación actual del mesh
-    const currentTranslate = mesh.translate || [0, 0, 0];
-    const currentScale = mesh.scale || 1;
-    const currentCenter = mesh.center || [0, 0, 0];
-    
-    // Calcular nueva traslación:
-    // 1. Primero, centrar el objeto (mover el centro a 0,0,0)
-    // 2. Luego, escalar al cubo unitario
-    // 3. Finalmente, mover a z = -3
-    
-    // Centro actual del mesh (considerando su transformación)
-    const meshCenter = [
-      currentTranslate[0] - currentCenter[0] * (typeof currentScale === 'number' ? currentScale : 1),
-      currentTranslate[1] - currentCenter[1] * (typeof currentScale === 'number' ? currentScale : 1),
-      currentTranslate[2] - currentCenter[2] * (typeof currentScale === 'number' ? currentScale : 1)
-    ];
-    
-    // Calcular nueva posición relativa al centro global
-    const relativeToGlobalCenter = [
-      meshCenter[0] - bbox.center[0],
-      meshCenter[1] - bbox.center[1],
-      meshCenter[2] - bbox.center[2]
-    ];
-    
-    // Aplicar escala al cubo unitario
-    const scaledRelative = [
-      relativeToGlobalCenter[0] * scaleFactor,
-      relativeToGlobalCenter[1] * scaleFactor,
-      relativeToGlobalCenter[2] * scaleFactor
-    ];
-    
-    const finalPosition: [number, number, number] = [
-      scaledRelative[0],
-      scaledRelative[1],
-      -3 
-    ];
-    
+    // Obtenemos la matriz de transformación actual de esta submalla (T * S * Centering)
+    const modelMatrix = calculateModelMatrix(mesh);
+
+    // Transformamos los vértices para consolidar su posición actual en la geometría
+    const newVertices = mesh.vertices.map((v: number[]) => {
+      // Pasamos el vértice de espacio local a espacio "mundo" (relativo al grupo)
+      const worldV = vec3.transformMat4(vec3.create(), v as vec3, modelMatrix);
+      
+      // Lo centramos respecto al centro del grupo y aplicamos la escala de normalización
+      return [
+        (worldV[0] - bbox.center[0]) * scaleFactor,
+        (worldV[1] - bbox.center[1]) * scaleFactor,
+        (worldV[2] - bbox.center[2]) * scaleFactor
+      ];
+    });
+
+    // Devolvemos la malla con los vértices normalizados y las propiedades reseteadas
     return {
       ...mesh,
-      center: currentCenter,
-      scale: Array.isArray(currentScale) 
-        ? [currentScale[0] * scaleFactor, currentScale[1] * scaleFactor, currentScale[2] * scaleFactor]
-        : currentScale * scaleFactor,
-      translate: finalPosition
+      vertices: newVertices,
+      translate: [...targetTranslate], // Ahora todas están en (0, 0, -3)
+      scale: 1.0,                      // Ahora todas tienen escala 1.0
+      center: [0, 0, 0]                // El centro local ahora es el origen
     };
   });
 }
@@ -1390,4 +1371,8 @@ export function centerAndNormalizeObject(meshes: Mesh[]): Mesh[] {
 export function resetView() {
   resetGlobalRotation();
   globalCenter = [0, 0, -3];
+}
+
+export function resetCameraToDefault() {
+  setCamera([0, 0, 0], [0, 0, -1], [0, 1, 0]);
 }

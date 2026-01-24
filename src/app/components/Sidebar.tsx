@@ -18,7 +18,9 @@ import {
   getGlobalRotationDegrees,
   setGlobalRotationDegrees,
   centerAndNormalizeObject,
-  resetView
+  resetView,
+  resetCameraToDefault,
+  computeTransformedBoundingBox
 } from '../WebGL';
 
 interface SidebarProps { 
@@ -34,6 +36,7 @@ interface SidebarProps {
   setBboxLocalColor: React.Dispatch<React.SetStateAction<string>>;
   bboxGlobalColor: string;
   setBboxGlobalColor: React.Dispatch<React.SetStateAction<string>>;
+  onReset?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -49,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   setBboxLocalColor,
   bboxGlobalColor,
   setBboxGlobalColor,
+  onReset
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,9 +217,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     reset: 'Resetear',
   };
 
-  // Centrar objeto
+  // Resetear objeto
 
-  const handleCenterObject = () => {
+  const handleResetObject = () => {
     if (meshes.length === 0) return;
     
     // 1. Resetear rotaciones
@@ -223,6 +227,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     setRotateX('0');
     setRotateY('0');
     setRotateZ('0');
+
+    resetCameraToDefault();
     
     // 2. Poner TODAS las submallas en EXACTAMENTE la misma posición (0,0,-3)
     const centeredMeshes = meshes.map(mesh => ({
@@ -254,6 +260,42 @@ const Sidebar: React.FC<SidebarProps> = ({
       bboxlocal: false,
       bbox: false 
     }));
+
+    if (onReset) onReset();
+  };
+
+  // Centrar objeto
+  
+  const handleCenterObject = () => {
+    if (meshes.length === 0) return;
+    
+    // 1. Deshacer rotaciones globales (resetea el quaternion a identidad)
+    resetView(); 
+    setRotateX('0');
+    setRotateY('0');
+    setRotateZ('0');
+    
+    // 2. Ubicar el ojo/cámara en 0 viendo hacia -z
+    resetCameraToDefault();
+    
+    // 3. Aplicar el nuevo centrado y normalización "horneada"
+    const updatedMeshes = centerAndNormalizeObject(meshes);
+    
+    // 4. Actualizar el estado (esto disparará el useEffect que sincroniza los inputs)
+    setMeshes(updatedMeshes);
+
+    // 5. Forzar la actualización manual de los estados de los inputs para evitar delays
+    setTranslateGlobalX('0');
+    setTranslateGlobalY('0');
+    setTranslateGlobalZ('-3');
+    setScaleX('1');
+    setScaleY('1');
+    setScaleZ('1');
+    
+    // 6. (Opcional) Deseleccionar submallas para ver el objeto completo
+    if (setSelectedMeshId) setSelectedMeshId(null);
+
+    if (onReset) onReset();
   };
 
   // Sincronizar selectedMeshId -> mostrar color actual
@@ -743,7 +785,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button 
                 className="sidebar-button center-btn" 
                 title= {buttonLabels.reset}
-                onClick={handleCenterObject}
+                onClick={handleResetObject}
               >
                 <ion-icon name="refresh-outline"></ion-icon>
               </button>

@@ -21,7 +21,7 @@ type ActiveSettings = {
 }
 
 const App: React.FC = () => {
-	// background default to black
+	const [resetTicket, setResetTicket] = useState(0);
 	const [bgColor, setBgColor] = useState<string>('rgba(0,0,0,1)');
 	const [bboxLocalColor, setBboxLocalColor] = useState<string>('rgba(255,255,0,1)');
 	const [bboxGlobalColor, setBboxGlobalColor] = useState<string>('rgba(255,0,0,1)');
@@ -73,6 +73,7 @@ const App: React.FC = () => {
   					setBboxLocalColor={setBboxLocalColor}
 					bboxGlobalColor={bboxGlobalColor}
 					setBboxGlobalColor={setBboxGlobalColor}
+					onReset={() => setResetTicket(prev => prev + 1)}
 				/>
 				<Canvas
 					bgColor={bgColor}
@@ -88,6 +89,7 @@ const App: React.FC = () => {
 					toggleBBoxLocal={() => setActiveSettings(prev => ({ ...prev, bboxlocal: !prev.bboxlocal }))}
 					activeSettings={activeSettings}
 					setActiveSettings={setActiveSettings}
+					resetTicket={resetTicket}
 				/>
 			</div>
 		</div>
