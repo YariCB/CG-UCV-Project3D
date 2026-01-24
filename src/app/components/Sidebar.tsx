@@ -230,20 +230,34 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     resetCameraToDefault();
     
-    // 2. Poner TODAS las submallas en EXACTAMENTE la misma posición (0,0,-3)
-    const centeredMeshes = meshes.map(mesh => ({
-      ...mesh,
-      translate: [0, 0, -3] as [number, number, number], // ¡TODAS IGUALES!
-      scale: 1,
-      center: [0, 0, 0] as [number, number, number],
-    }));
-    
-    setMeshes(centeredMeshes);
+    // 2. Si guardamos un snapshot al cargar, restaurarlo exactamente; si no, aplicar comportamiento antiguo
+    const restoredMeshes = meshes.map(mesh => {
+      if (mesh && (mesh as any).__orig) {
+        // Deep-clone para evitar mutaciones sobre el snapshot
+        return JSON.parse(JSON.stringify((mesh as any).__orig));
+      }
+      return {
+        ...mesh,
+        translate: [0, 0, -3] as [number, number, number], // ¡TODAS IGUALES!
+        scale: 1,
+        center: [0, 0, 0] as [number, number, number],
+      };
+    });
+
+    setMeshes(restoredMeshes);
     
     // 3. Resetear todos los inputs
-    setTranslateGlobalX('0');
-    setTranslateGlobalY('0');
-    setTranslateGlobalZ('-3');
+    // Sincronizar inputs con el estado restaurado (usar la primera malla como referencia)
+    if (restoredMeshes && restoredMeshes.length > 0) {
+      const t0 = restoredMeshes[0].translate || [0, 0, -3];
+      setTranslateGlobalX(String(t0[0] || 0));
+      setTranslateGlobalY(String(t0[1] || 0));
+      setTranslateGlobalZ(String(t0[2] || -3));
+    } else {
+      setTranslateGlobalX('0');
+      setTranslateGlobalY('0');
+      setTranslateGlobalZ('-3');
+    }
     setScaleX('1');
     setScaleY('1');
     setScaleZ('1');
@@ -280,9 +294,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     
     // 3. Aplicar el nuevo centrado y normalización "horneada"
     const updatedMeshes = centerAndNormalizeObject(meshes);
-    
+    // Preservar el snapshot original (__orig) para cada sub-malla si existe
+    const updatedWithOrig = updatedMeshes.map((m, i) => {
+      const orig = meshes[i] && (meshes[i] as any).__orig ? (meshes[i] as any).__orig : JSON.parse(JSON.stringify(meshes[i] || m));
+      return { ...m, __orig: orig };
+    });
+
     // 4. Actualizar el estado (esto disparará el useEffect que sincroniza los inputs)
-    setMeshes(updatedMeshes);
+    setMeshes(updatedWithOrig);
 
     // 5. Forzar la actualización manual de los estados de los inputs para evitar delays
     setTranslateGlobalX('0');
@@ -521,13 +540,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     // Asignar materiales usando los vértices normalizados
     const meshes = assignMaterials(normalizedObjData, materials);
     
-    // Configurar posición inicial en (0, 0, -3)
+    // Configurar posición inicial en (0, 0, -3) y guardar una copia original (__orig)
     const positionedMeshes = meshes.map(m => ({
       ...m,
       center: [0, 0, 0] as [number, number, number],
       scale: 1,
-      translate: [0, 0, -3] as [number, number, number] // Posición inicial
+      translate: [0, 0, -3] as [number, number, number], // Posición inicial
     }));
+
+    // Guardar snapshot profundo para poder "resetear" al estado cargado
+    const positionedWithOrig = positionedMeshes.map(m => ({ ...m, __orig: JSON.parse(JSON.stringify(m)) }));
 
     console.log("Meshes después de normalizar:", positionedMeshes);
 
@@ -535,7 +557,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     setActiveSettings((prev: any) => ({ ...prev, zBuffer: true, culling: true }));
     setDepthTest(true);
     setCulling(true);
-    setMeshes(positionedMeshes);
+    setMeshes(positionedWithOrig);
     // ensure bbox local visible when importing selection defaults
     setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
 
