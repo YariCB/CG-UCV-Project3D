@@ -122,16 +122,81 @@ export function assignMaterials(obj: OBJData, materials: Record<string, Material
     return acc;
   }, {} as Record<string, { v: number[]; n?: number[]; material?: string }[]>);
 
+  // Para cada grupo de material, construir un conjunto de vértices/normales local
   for (const mat in grouped) {
+    const faces = grouped[mat];
+    const vertMap = new Map<number, number>(); // original idx -> new idx
+    const newVerts: number[][] = [];
+
+    // Remap faces' vertex indices to local indices and build local vertex list
+    const remappedFaces = faces.map(face => {
+      const newV: number[] = [];
+      for (let i = 0; i < face.v.length; i++) {
+        const origIdx = face.v[i];
+        if (!vertMap.has(origIdx)) {
+          vertMap.set(origIdx, newVerts.length);
+          newVerts.push(obj.vertices[origIdx]);
+        }
+        newV.push(vertMap.get(origIdx)!);
+      }
+      return { v: newV, n: undefined };
+    });
+
+    // Compute smooth per-vertex normals for this submesh by averaging face normals
+    const newNorms = computePerVertexNormalsLocal(newVerts, remappedFaces);
+
     meshes.push({
       id: counter++,
-      vertices: obj.vertices,
-      normals: obj.normals,
-      faces: grouped[mat],
+      vertices: newVerts,
+      normals: newNorms,
+      faces: remappedFaces,
       color: materials[mat]?.Kd || [0.7, 0.7, 0.7]
     });
   }
   return meshes;
+}
+
+// Compute per-vertex normals for a mesh given its vertices and faces (faces.v are local indices)
+function computePerVertexNormalsLocal(vertices: number[][], faces: { v: number[]; n?: number[] }[]) {
+  const vCount = vertices.length;
+  const accum: number[][] = new Array(vCount).fill(null).map(() => [0,0,0]);
+  const counts: number[] = new Array(vCount).fill(0);
+
+  for (const face of faces) {
+    const verts = face.v;
+    if (!verts || verts.length < 3) continue;
+    // Triangulate fan
+    for (let i = 1; i < verts.length - 1; i++) {
+      const i0 = verts[0], i1 = verts[i], i2 = verts[i+1];
+      const v0 = vertices[i0];
+      const v1 = vertices[i1];
+      const v2 = vertices[i2];
+      const edge1 = [v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]];
+      const edge2 = [v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2]];
+      const nx = edge1[1]*edge2[2] - edge1[2]*edge2[1];
+      const ny = edge1[2]*edge2[0] - edge1[0]*edge2[2];
+      const nz = edge1[0]*edge2[1] - edge1[1]*edge2[0];
+      const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+      const fn = [nx/len, ny/len, nz/len];
+      [i0, i1, i2].forEach(idx => {
+        accum[idx][0] += fn[0];
+        accum[idx][1] += fn[1];
+        accum[idx][2] += fn[2];
+        counts[idx]++;
+      });
+    }
+  }
+
+  const normals: number[][] = new Array(vCount);
+  for (let i = 0; i < vCount; i++) {
+    const c = counts[i] || 1;
+    const ax = accum[i][0] / c;
+    const ay = accum[i][1] / c;
+    const az = accum[i][2] / c;
+    const l = Math.sqrt(ax*ax + ay*ay + az*az) || 1;
+    normals[i] = [ax / l, ay / l, az / l];
+  }
+  return normals;
 }
 
 // Normalización del modelo OBJ para centrarlo y escalarlo
