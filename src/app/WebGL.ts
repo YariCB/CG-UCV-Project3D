@@ -147,7 +147,7 @@ const vsSource = `
 attribute vec3 aPosition;
 attribute vec3 aNormal;
 uniform mat4 uMVP;
-uniform mat4 uModel;  // Nueva: matriz de modelo
+uniform mat4 uModel;
 varying vec3 vNormal;
 varying vec3 vPosition;
 
@@ -734,6 +734,10 @@ function ensurePointProgram() {
     precision mediump float;
     uniform vec3 uColor;
     void main() {
+      vec2 coord = gl_PointCoord - vec2(0.5); 
+      if (length(coord) > 0.5) {
+        discard;
+      }
       gl_FragColor = vec4(uColor, 1.0);
     }
   `;
