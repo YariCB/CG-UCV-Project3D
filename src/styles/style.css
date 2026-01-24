@@ -77,3 +77,48 @@ html, body, #root, .app {
     background-color: #3f3f3f;
     transform: scale(1.1);
 }
+
+/* Estilo del panel de FPS */
+
+.scene {
+  overflow: hidden;
+  display: flex;
+}
+
+.fps-card {
+  position: absolute;
+  top: 10px;
+  left: 225px;
+  z-index: 10;
+  
+  /* Estilo visual basado en tu Sidebar */
+  background-color: rgba(46, 46, 46, 0.9); /* #2e2e2e con transparencia */
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #a191ff; /* Tu color de acento morado */
+  
+  display: flex;
+  align-items: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  pointer-events: none; /* No interfiere con los clicks en el canvas */
+  transition: opacity 0.3s ease;
+}
+
+.fps-label {
+  color: #ccc;
+  margin-right: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fps-value {
+  color: #a191ff;
+  font-family: 'Monospace', monospace;
+  font-weight: bold;
+  font-size: 15px;
+}

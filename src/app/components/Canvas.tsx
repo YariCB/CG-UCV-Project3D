@@ -63,6 +63,44 @@ const Canvas: React.FC<CanvasProps> = ({
   // Profundidad inicial del objeto
   const initialDepthRef = useRef<number>(-3); 
 
+  // Frames por segundo (FPS)
+  const [fps, setFps] = useState(0);
+  const frameTimesRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    // Solo activar el loop si el ajuste de FPS está habilitado
+    if (!activeSettings.fps) {
+      setFps(0);
+      frameTimesRef.current = [];
+      return;
+    }
+
+    let requestId: number;
+
+    const calculateFps = () => {
+      const now = performance.now();
+      frameTimesRef.current.push(now);
+
+      const fiveSecondsAgo = now - 5000;
+      while (frameTimesRef.current.length > 0 && frameTimesRef.current[0] < fiveSecondsAgo) {
+        frameTimesRef.current.shift();
+      }
+
+      // Calculamos del tiempo real que se tiene en el buffer (máximo 5 segundos)
+      const durationInSeconds = (now - frameTimesRef.current[0]) / 1000;
+      
+      const averageFps = durationInSeconds > 0 
+        ? frameTimesRef.current.length / durationInSeconds 
+        : 0;
+
+      setFps(Math.round(averageFps));
+      requestId = requestAnimationFrame(calculateFps);
+    };
+
+    requestId = requestAnimationFrame(calculateFps);
+    return () => cancelAnimationFrame(requestId);
+  }, [activeSettings.fps]);
+
   const parseRgba = useCallback((c: string): [number, number, number, number] => {
     const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
     if (!m) return [0, 0, 0, 1];
@@ -615,6 +653,13 @@ const Canvas: React.FC<CanvasProps> = ({
 
   return (
     <main className="scene" style={{ background: bgColor }}>
+      {activeSettings.fps && (
+        <div className="fps-card">
+          <ion-icon name="speedometer-outline" style={{ marginRight: '8px', color: '#a191ff' }}></ion-icon>
+          <span className="fps-label">FPS</span>
+          <span className="fps-value">{fps}</span>
+        </div>
+      )}
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
     </main>
   );

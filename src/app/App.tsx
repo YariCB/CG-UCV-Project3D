@@ -29,7 +29,7 @@ const App: React.FC = () => {
 	const [selectedMeshId, setSelectedMeshId] = useState<number | null>(null);
 
 	const [activeSettings, setActiveSettings] = useState<ActiveSettings>({
-		fps: true,
+		fps: false,
 		aa: false,
 		zBuffer: true,
 		culling: true,
@@ -75,6 +75,7 @@ const App: React.FC = () => {
 					setBboxGlobalColor={setBboxGlobalColor}
 					onReset={() => setResetTicket(prev => prev + 1)}
 				/>
+
 				<Canvas
 					bgColor={bgColor}
 					meshes={meshes}
