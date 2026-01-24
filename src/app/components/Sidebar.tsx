@@ -214,7 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     normals: 'Mostrar Normales',
     bbox: 'Bounding Box Global',
     center: 'Centrar Objeto',
-    reset: 'Resetear',
+    reset: 'Reiniciar',
   };
 
   // Resetear objeto
@@ -538,6 +538,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     setMeshes(positionedMeshes);
     // ensure bbox local visible when importing selection defaults
     setActiveSettings((prev:any) => ({ ...prev, bboxlocal: true }));
+
+    // Resetear la cámara a la posición por defecto y notificar al canvas
+    try {
+      resetCameraToDefault();
+    } catch (err) {}
+    if (onReset) onReset();
   };
 
   // RGB Inputs component (no alpha)

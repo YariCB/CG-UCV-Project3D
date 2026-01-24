@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { quat } from 'gl-matrix';
-import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera } from '../WebGL';
+import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -105,9 +105,33 @@ const Canvas: React.FC<CanvasProps> = ({
     lookLastXRef.current = null;
     lookLastYRef.current = null;
 
-    // 2. Forzamos el redibujado con los valores reseteados de WebGL.ts
+    // 2. Obtener la cámara actual desde WebGL (puede haber sido reseteada)
+    try {
+      const cam = getCamera();
+      if (cam) {
+        cameraPosRef.current = [cam.pos[0], cam.pos[1], cam.pos[2]];
+        frontRef.current = [cam.front[0], cam.front[1], cam.front[2]];
+        upRef.current = [cam.up[0], cam.up[1], cam.up[2]];
+
+        // Actualizar yaw/pitch a partir del vector front
+        const fx = frontRef.current[0];
+        const fy = frontRef.current[1];
+        const fz = frontRef.current[2];
+        const yaw = Math.atan2(fz, fx) * 180 / Math.PI;
+        const pitch = Math.asin(fy) * 180 / Math.PI;
+        yawRef.current = yaw;
+        pitchRef.current = pitch;
+
+        // Propagar la cámara a WebGL por coherencia
+        setCamera(cameraPosRef.current, frontRef.current, upRef.current);
+      }
+    } catch (err) {
+      // si falla, seguir con el redraw
+    }
+
+    // 3. Forzamos el redibujado con los valores reseteados de WebGL.ts
     handleRedraw();
-    
+
     console.log("Canvas: Redibujado por señal de reset");
   }, [resetTicket, handleRedraw]);
 
