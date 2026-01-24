@@ -223,67 +223,31 @@ function buildBuffers(mesh: Mesh, program: WebGLProgram) {
 
   mesh.faces.forEach(face => {
     const verts = face.v;
-    const norms = face.n || [];
     if (verts.length < 3) return;
 
-    if (verts.length === 3) {
-      // Triángulo simple
-      for (let i = 0; i < 3; i++) {
-        const vidx = verts[i];
-        flatVerts.push(...mesh.vertices[vidx]);
+    // Calculamos la normal de la CARA (Flat Shading)
+    const v0 = mesh.vertices[verts[0]];
+    const v1 = mesh.vertices[verts[1]];
+    const v2 = mesh.vertices[verts[2]];
+    
+    const edge1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+    const edge2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+    
+    // Producto cruz para obtener la normal de la superficie
+    const nx = edge1[1] * edge2[2] - edge1[2] * edge2[1];
+    const ny = edge1[2] * edge2[0] - edge1[0] * edge2[2];
+    const nz = edge1[0] * edge2[1] - edge1[1] * edge2[0];
+    const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+    const faceNormal = [nx/len, ny/len, nz/len];
 
-        // Preferir normales por vértice (mesh.normals con longitud == vertices.length)
-        if (mesh.normals && mesh.normals.length === mesh.vertices.length) {
-          const n = mesh.normals[vidx] || [0,0,1];
-          flatNormals.push(n[0], n[1], n[2]);
-        } else if (norms[i] !== undefined && mesh.normals && mesh.normals[norms[i]!]) {
-          // Usar normal indicada en la cara (índice de normal)
-          const normal = mesh.normals[norms[i]!]!;
-          flatNormals.push(...normal);
-        } else {
-          // Calcular normal aproximada para la cara
-          const v0 = mesh.vertices[verts[0]];
-          const v1 = mesh.vertices[verts[1]];
-          const v2 = mesh.vertices[verts[2]];
-          
-          const edge1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
-          const edge2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
-          
-          // Producto cruz
-          const normal = [
-            edge1[1] * edge2[2] - edge1[2] * edge2[1],
-            edge1[2] * edge2[0] - edge1[0] * edge2[2],
-            edge1[0] * edge2[1] - edge1[1] * edge2[0]
-          ];
-          
-          // Normalizar
-          const length = Math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2);
-          if (length > 0) {
-            flatNormals.push(normal[0]/length, normal[1]/length, normal[2]/length);
-          } else {
-            flatNormals.push(0, 0, 1);
-          }
-        }
-      }
-    } else {
-      // Polígono - triangular en abanico
-      for (let i = 1; i < verts.length - 1; i++) {
-        const tri = [0, i, i + 1];
-        for (const t of tri) {
-          const vidx = verts[t];
-          flatVerts.push(...mesh.vertices[vidx]);
-          if (mesh.normals && mesh.normals.length === mesh.vertices.length) {
-            const n = mesh.normals[vidx] || [0,0,1];
-            flatNormals.push(n[0], n[1], n[2]);
-          } else if (norms[t] !== undefined && mesh.normals && mesh.normals[norms[t]!]) {
-            const normal = mesh.normals[norms[t]!]!;
-            flatNormals.push(...normal);
-          } else {
-            // Normal por defecto para caras complejas
-            flatNormals.push(0, 0, 1);
-          }
-        }
-      }
+    // Triangulación (Fan)
+    for (let i = 1; i < verts.length - 1; i++) {
+      const indices = [0, i, i + 1];
+      indices.forEach(idx => {
+        const vIdx = verts[idx];
+        flatVerts.push(...mesh.vertices[vIdx]);
+        flatNormals.push(...faceNormal);
+      });
     }
   });
 
