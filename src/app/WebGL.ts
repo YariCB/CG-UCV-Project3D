@@ -1786,3 +1786,49 @@ export function computeTranslateForDesiredWorld(mesh: any, desiredWorld: [number
   // t = invGlobal * desiredWorld - pPrime
   return [ tmp[0] - pPrime[0], tmp[1] - pPrime[1], tmp[2] - pPrime[2] ];
 }
+
+// Project a world-space point to NDC using current camera/global transform
+export function worldToNDC(worldPoint: [number, number, number], canvas?: HTMLCanvasElement) {
+  if (!gl && !canvas) return { ndcX: 0, ndcY: 0, ndcZ: 0 };
+  const c = canvas || (gl!.canvas as HTMLCanvasElement);
+  const projection = mat4.create();
+  mat4.perspective(projection, Math.PI / 4, c.width / c.height, 0.1, 100);
+  const view = mat4.create();
+  const eye = cameraPos;
+  const center = vec3.create();
+  vec3.set(center, cameraPos[0] + cameraFront[0], cameraPos[1] + cameraFront[1], cameraPos[2] + cameraFront[2]);
+  mat4.lookAt(view, eye as any, center as any, cameraUp as any);
+
+  const tmp = vec4.create();
+  vec4.transformMat4(tmp, vec4.fromValues(worldPoint[0], worldPoint[1], worldPoint[2], 1), mat4.multiply(mat4.create(), projection, view));
+  const ndcX = tmp[0] / tmp[3];
+  const ndcY = tmp[1] / tmp[3];
+  const ndcZ = tmp[2] / tmp[3];
+  return { ndcX, ndcY, ndcZ };
+}
+
+// Unproject screen (canvas) coordinates to world at supplied NDC Z
+export function unprojectScreenToWorld(canvas: HTMLCanvasElement, screenX: number, screenY: number, ndcZ: number) {
+  const projection = mat4.create();
+  mat4.perspective(projection, Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
+  const view = mat4.create();
+  const eye = cameraPos;
+  const center = vec3.create();
+  vec3.set(center, cameraPos[0] + cameraFront[0], cameraPos[1] + cameraFront[1], cameraPos[2] + cameraFront[2]);
+  mat4.lookAt(view, eye as any, center as any, cameraUp as any);
+
+  const pv = mat4.create();
+  mat4.multiply(pv, projection, view);
+  const inv = mat4.create();
+  if (!mat4.invert(inv, pv)) return [0,0,0];
+
+  // Convert screen to NDC
+  const ndcX = (screenX / canvas.width) * 2 - 1;
+  const ndcY = 1 - (screenY / canvas.height) * 2;
+
+  const clip = vec4.fromValues(ndcX, ndcY, ndcZ, 1);
+  const out = vec4.create();
+  vec4.transformMat4(out, clip, inv);
+  if (out[3] === 0) return [out[0], out[1], out[2]];
+  return [out[0]/out[3], out[1]/out[3], out[2]/out[3]];
+}

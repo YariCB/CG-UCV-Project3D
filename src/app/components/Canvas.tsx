@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { quat } from 'gl-matrix';
-import { initWebGL, setAntialiasing, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera, localToWorld, modelNoTranslateLocalPoint, computeTranslateForDesiredWorld } from '../WebGL';
+import { initWebGL, setAntialiasing, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera, localToWorld, modelNoTranslateLocalPoint, computeTranslateForDesiredWorld, worldToNDC, unprojectScreenToWorld } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -41,6 +41,7 @@ const Canvas: React.FC<CanvasProps> = ({
   const isDraggingRef = useRef(false);
   const lastMouseXRef = useRef(0);
   const lastMouseYRef = useRef(0);
+  const dragInfoRef = useRef<any>(null);
 
   // Arrastre del objeto completo
   const isDraggingObjectRef = useRef(false);
@@ -209,11 +210,15 @@ const Canvas: React.FC<CanvasProps> = ({
       isDraggingObjectRef.current = true;
       lastMouseXRef.current = e.clientX;
       lastMouseYRef.current = e.clientY;
-      
-      // Usar profundidad promedio de todos los meshes
-      const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
-      initialDepthRef.current = totalZ / meshes.length;
-      
+
+      // Guardar estado de arrastre estable: referencia en mundo y profundidad NDC
+      const refMesh = meshes[0];
+      const refLocal = (refMesh && refMesh.center) ? refMesh.center : [0,0,0];
+      const refWorld = localToWorld(refMesh, refLocal as [number,number,number]);
+      const ndc = worldToNDC(refWorld, canvas);
+      const perMesh = meshes.map(m => ({ id: m.id, worldRef: localToWorld(m, m.center ? m.center : [0,0,0]) }));
+      dragInfoRef.current = { type: 'object', worldRef, ndcZ: ndc.ndcZ, perMesh };
+
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
       return;
@@ -237,6 +242,14 @@ const Canvas: React.FC<CanvasProps> = ({
       const totalZ = meshes.reduce((sum, mesh) => sum + (mesh.translate?.[2] || -3), 0);
       initialDepthRef.current = totalZ / meshes.length;
       
+      // Stable drag info for object
+      const refMesh = meshes[0];
+      const refLocal = (refMesh && refMesh.center) ? refMesh.center : [0,0,0];
+      const refWorld = localToWorld(refMesh, refLocal as [number,number,number]);
+      const ndc = worldToNDC(refWorld, canvas);
+      const perMesh = meshes.map(m => ({ id: m.id, worldRef: localToWorld(m, m.center ? m.center : [0,0,0]) }));
+      dragInfoRef.current = { type: 'object', worldRef, ndcZ: ndc.ndcZ, perMesh };
+
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
     } else if (pickedId === selectedMeshId) {
@@ -245,13 +258,23 @@ const Canvas: React.FC<CanvasProps> = ({
       isDraggingObjectRef.current = false;
       lastMouseXRef.current = e.clientX;
       lastMouseYRef.current = e.clientY;
-      
-      // Guardar la profundidad del objeto seleccionado
+
+      // Guardar estado estable para arrastre de submalla: referencia local y NDC depth
       const mesh = meshes.find(m => m.id === selectedMeshId);
+      if (mesh) {
+        const localRef = mesh.__orig?.center || mesh.center || [0,0,0];
+        const worldRef = localToWorld(mesh, localRef as [number,number,number]);
+        const ndc = worldToNDC(worldRef, canvas);
+        dragInfoRef.current = { type: 'submesh', meshId: selectedMeshId, localRef, worldRef, ndcZ: ndc.ndcZ };
+      } else {
+        dragInfoRef.current = null;
+      }
+
+      // Guardar la profundidad también por compatibilidad
       if (mesh && mesh.translate) {
         initialDepthRef.current = mesh.translate[2] || -3;
       }
-      
+
       canvas.style.cursor = 'grabbing';
       e.preventDefault();
     }
@@ -340,78 +363,95 @@ const Canvas: React.FC<CanvasProps> = ({
     if (isDraggingObjectRef.current) {
       // Arrastrar objeto completo
       if (meshes.length === 0) return;
-      // Compute world-space delta based on depth at the group's center
-      // Use the average of mesh centers transformed to world to get a reference depth
-      const refMesh = meshes[0];
-      const refLocal = (refMesh && refMesh.center) ? refMesh.center : [0,0,0];
-      const refWorld = localToWorld(refMesh, refLocal as [number,number,number]);
-      // camera basis
-      const camPos = cameraPosRef.current;
-      const camFront = frontRef.current;
-      const camUp = upRef.current;
-      const toRef = [refWorld[0]-camPos[0], refWorld[1]-camPos[1], refWorld[2]-camPos[2]];
-      const depth = Math.max(0.0001, Math.abs((toRef[0]*camFront[0] + toRef[1]*camFront[1] + toRef[2]*camFront[2])));
-
-      const worldHeight = 2 * Math.tan(fov / 2) * depth;
-      const worldWidth = worldHeight * aspect;
-      const moveX = (deltaX / rect.width) * worldWidth;
-      const moveY = -(deltaY / rect.height) * worldHeight;
-
-      // camera right vector
-      const right = [
-        camFront[1]*camUp[2] - camFront[2]*camUp[1],
-        camFront[2]*camUp[0] - camFront[0]*camUp[2],
-        camFront[0]*camUp[1] - camFront[1]*camUp[0]
-      ];
-      const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
-      right[0]/=rlen; right[1]/=rlen; right[2]/=rlen;
-
-      const upVec = camUp;
-
-      const worldDelta = [ right[0]*moveX + upVec[0]*moveY, right[1]*moveX + upVec[1]*moveY, right[2]*moveX + upVec[2]*moveY ];
-
-      // Apply worldDelta to each mesh by computing the required local translate
-      setMeshes(prevMeshes => prevMeshes.map(mesh => {
-        const localRef = mesh.center ? mesh.center : [0,0,0];
-        const worldRef = localToWorld(mesh, localRef as [number,number,number]);
-        const desiredWorld = [worldRef[0]+worldDelta[0], worldRef[1]+worldDelta[1], worldRef[2]+worldDelta[2]];
-        const newTranslate = computeTranslateForDesiredWorld(mesh, desiredWorld, localRef as [number,number,number]);
-        return { ...mesh, translate: newTranslate };
-      }));
+      const info = dragInfoRef.current;
+      if (info && info.type === 'object') {
+        // Use unproject to compute desired world for group's reference and apply delta to each saved mesh
+        const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const newDesiredWorld = unprojectScreenToWorld(canvas, sx, sy, info.ndcZ);
+        const worldDelta: [number, number, number] = [newDesiredWorld[0] - info.worldRef[0], newDesiredWorld[1] - info.worldRef[1], newDesiredWorld[2] - info.worldRef[2]];
+        for (const saved of info.perMesh) {
+          const m = meshes.find(x => x.id === saved.id);
+          if (!m) continue;
+          const desiredWorldForMesh: [number, number, number] = [saved.worldRef[0] + worldDelta[0], saved.worldRef[1] + worldDelta[1], saved.worldRef[2] + worldDelta[2]];
+          const localRefM: [number, number, number] = m.center ? m.center : [0,0,0];
+          const newT = computeTranslateForDesiredWorld(m, desiredWorldForMesh, localRefM);
+          m.translate = newT;
+        }
+        setMeshes([...meshes]);
+      } else {
+        // Fallback: previous screen-delta → world-delta approach
+        const refMesh = meshes[0];
+        const refLocal = (refMesh && refMesh.center) ? refMesh.center : [0,0,0];
+        const refWorld = localToWorld(refMesh, refLocal as [number,number,number]);
+        const camPos = cameraPosRef.current;
+        const camFront = frontRef.current;
+        const camUp = upRef.current;
+        const toRef = [refWorld[0]-camPos[0], refWorld[1]-camPos[1], refWorld[2]-camPos[2]];
+        const depth = Math.max(0.0001, Math.abs((toRef[0]*camFront[0] + toRef[1]*camFront[1] + toRef[2]*camFront[2])));
+        const worldHeight = 2 * Math.tan(fov / 2) * depth;
+        const worldWidth = worldHeight * aspect;
+        const moveX = (deltaX / rect.width) * worldWidth;
+        const moveY = -(deltaY / rect.height) * worldHeight;
+        const right = [
+          camFront[1]*camUp[2] - camFront[2]*camUp[1],
+          camFront[2]*camUp[0] - camFront[0]*camUp[2],
+          camFront[0]*camUp[1] - camFront[1]*camUp[0]
+        ];
+        const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
+        right[0]/=rlen; right[1]/=rlen; right[2]/=rlen;
+        const upVec = camUp;
+        const worldDelta = [ right[0]*moveX + upVec[0]*moveY, right[1]*moveX + upVec[1]*moveY, right[2]*moveX + upVec[2]*moveY ];
+        setMeshes(prevMeshes => prevMeshes.map(mesh => {
+          const localRef = mesh.center ? mesh.center : [0,0,0];
+          const worldRef = localToWorld(mesh, localRef as [number,number,number]);
+          const desiredWorld = [worldRef[0]+worldDelta[0], worldRef[1]+worldDelta[1], worldRef[2]+worldDelta[2]];
+          const newTranslate = computeTranslateForDesiredWorld(mesh, desiredWorld, localRef as [number,number,number]);
+          return { ...mesh, translate: newTranslate };
+        }));
+      }
     } else {
       // Arrastrar submalla seleccionada
       if (!selectedMeshId) return;
-      
-      const selectedMesh = meshes.find(m => m.id === selectedMeshId);
-      if (!selectedMesh) return;
-      
-      const localRef = selectedMesh.center ? selectedMesh.center : [0,0,0];
-      const worldRef = localToWorld(selectedMesh, localRef as [number,number,number]);
-      const toRef = [worldRef[0]-cameraPosRef.current[0], worldRef[1]-cameraPosRef.current[1], worldRef[2]-cameraPosRef.current[2]];
-      const depth = Math.max(0.0001, Math.abs((toRef[0]*frontRef.current[0] + toRef[1]*frontRef.current[1] + toRef[2]*frontRef.current[2])));
-      const worldHeight = 2 * Math.tan(fov / 2) * depth;
-      const worldWidth = worldHeight * aspect;
-      const moveX = (deltaX / rect.width) * worldWidth;
-      const moveY = -(deltaY / rect.height) * worldHeight;
 
-      // camera right vector
-      const camFront = frontRef.current;
-      const camUp = upRef.current;
-      const right = [
-        camFront[1]*camUp[2] - camFront[2]*camUp[1],
-        camFront[2]*camUp[0] - camFront[0]*camUp[2],
-        camFront[0]*camUp[1] - camFront[1]*camUp[0]
-      ];
-      const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
-      right[0]/=rlen; right[1]/=rlen; right[2]/=rlen;
-
-      const upVec = camUp;
-      const worldDelta = [ right[0]*moveX + upVec[0]*moveY, right[1]*moveX + upVec[1]*moveY, right[2]*moveX + upVec[2]*moveY ];
-
-      const desiredWorld = [ worldRef[0] + worldDelta[0], worldRef[1] + worldDelta[1], worldRef[2] + worldDelta[2] ];
-      const newTranslate = computeTranslateForDesiredWorld(selectedMesh, desiredWorld, localRef as [number,number,number]);
-
-      setMeshes(prevMeshes => prevMeshes.map(mesh => mesh.id === selectedMeshId ? { ...mesh, translate: newTranslate } : mesh));
+      const info = dragInfoRef.current;
+      if (info && info.type === 'submesh' && info.meshId === selectedMeshId) {
+        // Unproject mouse to world at stored NDC depth
+        const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const desiredWorld = unprojectScreenToWorld(canvas, sx, sy, info.ndcZ);
+        const mesh = meshes.find(m => m.id === selectedMeshId);
+        if (!mesh) return;
+        const newTranslate = computeTranslateForDesiredWorld(mesh, desiredWorld as any, info.localRef);
+        setMeshes(prevMeshes => prevMeshes.map(m => m.id === selectedMeshId ? { ...m, translate: newTranslate } : m));
+      } else {
+        // Fallback: previous screen-delta → world-delta approach
+        if (!selectedMeshId) return;
+        const selectedMesh = meshes.find(m => m.id === selectedMeshId);
+        if (!selectedMesh) return;
+        const localRef = selectedMesh.center ? selectedMesh.center : [0,0,0];
+        const worldRef = localToWorld(selectedMesh, localRef as [number,number,number]);
+        const toRef = [worldRef[0]-cameraPosRef.current[0], worldRef[1]-cameraPosRef.current[1], worldRef[2]-cameraPosRef.current[2]];
+        const depth = Math.max(0.0001, Math.abs((toRef[0]*frontRef.current[0] + toRef[1]*frontRef.current[1] + toRef[2]*frontRef.current[2])));
+        const worldHeight = 2 * Math.tan(fov / 2) * depth;
+        const worldWidth = worldHeight * aspect;
+        const moveX = (deltaX / rect.width) * worldWidth;
+        const moveY = -(deltaY / rect.height) * worldHeight;
+        const camFront = frontRef.current;
+        const camUp = upRef.current;
+        const right = [
+          camFront[1]*camUp[2] - camFront[2]*camUp[1],
+          camFront[2]*camUp[0] - camFront[0]*camUp[2],
+          camFront[0]*camUp[1] - camFront[1]*camUp[0]
+        ];
+        const rlen = Math.hypot(right[0], right[1], right[2]) || 1;
+        right[0]/=rlen; right[1]/=rlen; right[2]/=rlen;
+        const upVec = camUp;
+        const worldDelta = [ right[0]*moveX + upVec[0]*moveY, right[1]*moveX + upVec[1]*moveY, right[2]*moveX + upVec[2]*moveY ];
+        const desiredWorld = [ worldRef[0] + worldDelta[0], worldRef[1] + worldDelta[1], worldRef[2] + worldDelta[2] ];
+        const newTranslate = computeTranslateForDesiredWorld(selectedMesh, desiredWorld, localRef as [number,number,number]);
+        setMeshes(prevMeshes => prevMeshes.map(mesh => mesh.id === selectedMeshId ? { ...mesh, translate: newTranslate } : mesh));
+      }
     }
 
     lastMouseXRef.current = e.clientX;
@@ -432,12 +472,14 @@ const Canvas: React.FC<CanvasProps> = ({
       isRotatingRef.current = false;
       isDraggingRef.current = false;
       isDraggingObjectRef.current = false;
+      dragInfoRef.current = null;
       return;
     }
 
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
       isDraggingObjectRef.current = false;
+      dragInfoRef.current = null;
       const canvas = canvasRef.current;
       if (canvas) {
         // Restaurar cursor según el contexto actual
