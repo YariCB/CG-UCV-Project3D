@@ -1,4 +1,4 @@
-
+/* Layout general del contenedor lateral */
 .sidebar-container {
   width: 260px;
   min-width: 200px;
@@ -6,12 +6,12 @@
   padding: 10px 0;
   display: flex;
   flex-direction: column;
-
   background-color: #2e2e2e;
   color: #ffffff;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
 }
 
+/* Contenido scrollable de la sidebar */
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
@@ -19,7 +19,7 @@
   position: relative;
 }
 
-/* Estilo para que el scroll se vea más moderno (opcional) */
+/* Scrollbar moderno para el contenido de la sidebar */
 .sidebar-content::-webkit-scrollbar {
   width: 6px;
 }
@@ -37,17 +37,17 @@
   background: #a191ff;
 }
 
+/* Títulos de sección pequeños */
 .section-title {
   padding: 0 5px;
   margin: 3px 0;
-
   font-size: 10px;
   text-transform: uppercase;
   text-align: left;
   color: hsl(0, 0%, 80%);
 }
 
-
+/* Grid para botones de herramientas */
 .tool-group {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
@@ -55,6 +55,7 @@
   margin: 5px;
 }
 
+/* Wrapper para botón de herramienta + etiqueta */
 .tool-button-wrapper {
   width: 42px;
   display: flex;
@@ -62,35 +63,32 @@
   align-items: center;
 }
 
+/* Texto para mostrar ID de selección */
 .selection-id {
   font-size: 12px;
   color: #ccc;
 }
 
+/* Etiqueta pequeña debajo de los iconos */
 .tool-button-label {
   width: 100%;
   margin-top: 4px;
-
   font-size: 9px;
   line-height: 1.1;
   text-align: center;
   color: #ccc;
-
   pointer-events: none;
   word-wrap: break-word;
 }
 
-/* Botón genérico de la sidebar */
-
+/* Botón base reutilizado en la sidebar */
 .sidebar-button {
   width: 32px;
   height: 32px;
-
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-
   background: none;
   border: 1px solid #a191ff;
   border-radius: 8px;
@@ -99,36 +97,43 @@
   transition: all 0.2s ease;
 }
 
+/* Hover para botón base */
 .sidebar-button:hover {
   background-color: #3f3f3f;
   border-color: #b5a8ff;
 }
 
+/* Iconos dentro del botón base */
 .sidebar-button ion-icon {
   font-size: 20px;
 }
 
+/* Estado activo del botón base */
 .sidebar-button.active {
   background-color: #a191ff;
   border-color: #ffffff;
   color: #1b1b1b;
 }
 
-/* Colores y herramientas adicionales */
-
+/* Contenedor de controles de visualización dinámica */
 .dynamic-visualization-controls {
   margin-top: 10px;
   padding: 10px;
   background-color: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
+/* Separador fino dentro de bloques */
 .section-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
   margin-bottom: 10px;
 }
 
+/* Bloque para control de tamaño de vértices */
 .vertex-size-row {
   margin-top: 15px;
   display: flex;
@@ -136,105 +141,116 @@
   gap: 8px;
 }
 
+/* Etiqueta de control en bloque de vértices */
 .vertex-size-row .tool-label {
   font-size: 11px;
   color: #bbb;
   text-transform: uppercase;
 }
 
+/* Contenedor genérico del slider */
 .slider-container {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  flex: 1;
+  width: 100%;
 }
 
-/* Reduce la distancia con el elemento superior */
-.slider-row-adjustment {
-  margin-top: -5px !important;
-  padding-top: 0 !important;
-}
-
-/* Contenedor del slider */
-.slider-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1.2;
-}
-
-/* Barra del slider (Track) */
-.slider-container input[type="range"] {
+/* Barra del input range */
+.slider-container input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 6px; /* BARRA MÁS ANCHA (antes 4px) */
+  height: 4px;
   background: #444;
-  border-radius: 3px;
+  border-radius: 2px;
   outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-/* Tirador del slider (Thumb) */
-.slider-container input[type="range"]::-webkit-slider-thumb {
+/* Thumb del slider (WebKit) */
+.slider-container input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   background: #a191ff;
   border: 2px solid #ffffff;
   border-radius: 50%;
   cursor: pointer;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease-in-out;
 }
 
-/* Número indicador */
+/* Hover del thumb (WebKit) */
+.slider-container input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #b5a8ff;
+}
+
+/* Thumb del slider (Firefox) */
+.slider-container input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #a191ff;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+/* Valor numérico mostrado junto al slider */
 .slider-value {
-  font-size: 12px !important;
-  font-weight: bold;
+  font-size: 11px;
+  font-family: 'Monaco', 'Consolas', monospace;
   color: #a191ff;
   min-width: 20px;
   text-align: right;
-  font-family: monospace;
+  font-weight: bold;
 }
 
-/* Separador visual */
-
+/* Separador visual entre bloques de la sidebar */
 .sidebar-separator {
   height: 1px;
   margin: 5px;
   background-color: #4a4a4a;
 }
 
+/* Grupo de botones de archivo (cargar/guardar) */
 .file-ops-group {
   display: flex;
   align-items: center;
   gap: 8px;
-
   padding: 0 10px;
   margin-bottom: 10px;
 }
 
+/* Botón de cargar archivo */
 .archive-btn {
   flex: 1;
   height: 32px;
-
   font-size: 13px;
   font-weight: 500;
 }
 
+/* Botón de guardar escena */
 .save-btn {
   width: 32px;
   height: 32px;
 }
 
+/* Pie de la sidebar (enlace a GitHub) */
 .sidebar-footer {
   margin-top: auto;
   padding: 15px 10px;
-
   display: flex;
   justify-content: center;
-
   border-top: 1px solid #4a4a4a;
 }
 
+/* Botón/enlace a GitHub */
 .github-link {
   width: 32px;
   height: 32px;
@@ -242,6 +258,7 @@
   text-decoration: none;
 }
 
+/* Fila genérica de inputs con etiqueta */
 .input-row {
   position: relative;
   display: flex;
@@ -251,175 +268,171 @@
   margin-bottom: 10px;
 }
 
+/* Etiqueta en fila de input */
 .input-row label {
   font-size: 11px;
   color: #bbb;
 }
 
-.input-row input[type="color"] {
+/* Input de color nativo dentro de fila */
+.input-row input[type='color'] {
   width: 25px;
   height: 18px;
-
   border: none;
   background: none;
   cursor: pointer;
 }
 
-.dynamic-visualization-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 12px; /* separación vertical entre bloques */
-  margin-top: 10px;
-}
-
-/* Botón que muestra el color actual */
+/* Botón para mostrar el color actual (preview) */
 .color-preview-button {
   padding: 4px;
-  /* normalmente también lleva .sidebar-button */
 }
 
-/* Contenedor relativo para TODOS los color pickers */
+/* Contenedor relativo para pickers de color */
 .color-picker-relative-container {
   position: relative;
   display: inline-block;
   overflow: visible !important;
 }
 
-/* Tooltip base (rueda cromática + inputs) */
+/* Tooltip del selector de color (portal) */
 .color-tooltip {
   position: absolute;
   z-index: 9999;
-
   top: 35px;
   left: 0;
-
   background: #1b1b1b;
   border: 1px solid #444;
   border-radius: 8px;
   padding: 8px;
   width: max-content;
-
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* Contenido interno del tooltip */
-
+/* Fila de preview de color + controles */
 .preview-group {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+/* Muestra del color actual */
 .color-swatch {
   width: 28px;
   height: 18px;
-
   border: 1px solid #000;
   border-radius: 4px;
 }
 
+/* Contenedor de campos RGBA/RGB */
 .rgba-inputs-container {
   display: flex;
   gap: 6px;
 }
 
+/* Fila de inputs RGB */
 .rgb-inputs {
   display: flex;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: center;
 }
 
+/* Item individual de input RGBA */
 .rgba-input-item {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
+/* Etiqueta pequeña del canal de color */
 .rgba-input-item label {
   font-size: 11px;
   color: #ffffff;
 }
 
+/* Input de componente de color */
 .color-component-input {
   width: 56px;
   padding: 4px;
-
   font-size: 12px;
   text-align: center;
-
   background: #1b1b1b;
   border: 1px solid #444;
   border-radius: 4px;
   color: #fff;
 }
 
+/* Margen superior utilitario */
 .mt-10 {
   margin-top: 10px;
 }
 
+/* Contenedor de grupo de transformaciones */
 .transform-group {
   padding: 5px 10px;
 }
 
+/* Etiqueta pequeña de bloque de transformación */
 .label-small {
   display: block;
   margin-bottom: 4px;
-
   font-size: 11px;
   color: #888;
 }
 
+/* Etiqueta extra pequeña de ayuda */
 .label-small-small {
   display: block;
   margin-bottom: 4px;
-
   font-size: 9px;
   color: #888;
 }
 
+/* Contenedor para inputs X, Y, Z */
 .xyz-inputs {
   display: flex;
   gap: 4px;
 }
 
+/* Estilo base de inputs numéricos XYZ */
 .xyz-inputs input {
   width: 100%;
   padding: 3px;
-
   font-size: 11px;
   text-align: center;
-
   background-color: #1b1b1b;
   border: 1px solid #4a4a4a;
   border-radius: 3px;
   color: #ffffff;
 }
 
-/* Ocultar flechas en Chrome, Safari, Edge y Opera */
+/* Ocultar flechas numéricas (WebKit) */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Ocultar flechas en Firefox */
-input[type=number] {
+/* Ocultar flechas numéricas (Firefox) */
+input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-/* Sección de rotación */
-
+/* Wrapper para input con unidad (rotación) */
 .xyz-input-with-unit {
   position: relative;
   width: 100%;
 }
 
+/* Input dentro del wrapper con unidad */
 .xyz-input-with-unit input {
   width: 100%;
   padding-right: 14px;
 }
 
+/* Unidad (°) dentro del input */
 .xyz-unit {
   position: absolute;
   right: 4px;
@@ -430,6 +443,7 @@ input[type=number] {
   pointer-events: none;
 }
 
+/* Fila de controles de rotación */
 .rotation-row {
   display: flex;
   align-items: center;
@@ -439,13 +453,15 @@ input[type=number] {
   width: 100%;
 }
 
+/* Inputs XYZ dentro de fila de rotación */
 .rotation-row .xyz-inputs {
-  flex: 1; 
+  flex: 1;
   display: flex;
   gap: 4px;
   min-width: 0;
 }
 
+/* Botón para resetear rotación */
 .rotation-reset-btn {
   width: 24px !important;
   height: 24px !important;
@@ -457,15 +473,17 @@ input[type=number] {
   flex-shrink: 0;
 }
 
+/* Icono dentro del botón de reset de rotación */
 .rotation-reset-btn ion-icon {
   font-size: 14px !important;
   display: block;
 }
 
+/* Ajustes de input dentro de fila de rotación */
 .rotation-row .xyz-input-with-unit {
   flex: 1;
   position: relative;
-  min-width: 0; 
+  min-width: 0;
 }
 
 .rotation-row .xyz-input-with-unit input {
@@ -481,120 +499,117 @@ input[type=number] {
   color: #888;
 }
 
+/* Cuadro para mostrar información de selección */
 .selection-box {
   margin-top: 5px;
   padding-top: 5px;
-
   background-color: rgba(161, 145, 255, 0.05);
   border-left: 2px solid #a191ff;
 }
 
+/* Fila de acciones para la malla seleccionada */
 .mesh-actions-row {
   position: relative;
-
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-
   padding: 0 10px;
 }
 
-/* Grupo BBox local (botón + color) */
-.bbox-local-group, .bbox-global-group {
+/* Grupo BBox local/global (botón + color) */
+.bbox-local-group,
+.bbox-global-group {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
-.bbox-global-group .color-preview-button, .bbox-global-group .sidebar-button {
+/* Ajuste vertical de botones/color en BBox global */
+.bbox-global-group .color-preview-button,
+.bbox-global-group .sidebar-button {
   margin-top: 5px;
 }
 
-/* Wrapper para botón eliminar */
+/* Wrapper para botón de eliminar */
 .delete-wrapper {
   margin-left: auto;
 }
 
-.center-btn:hover{
+/* Hover del botón centrar (clase usada en icono center) */
+.center-btn:hover {
   background-color: #a191ff;
   border-color: #ffffff;
   color: #1b1b1b;
 }
 
+/* Hover del botón eliminar malla */
 .delete-btn:hover {
   background-color: #ff4d4d;
   border-color: #ff4d4d;
   color: #ffffff;
 }
 
+/* Input de archivo oculto */
 .hidden-file-input {
   display: none;
 }
 
+/* Etiqueta para toggle de Anti Aliasing */
 .aa-label {
   font-size: 10px;
   font-weight: 700;
 }
 
-/* Contenedor del slider para que ocupe el ancho correcto */
-.slider-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  width: 100%;
-}
-
-/* Estilo base del input range */
-.slider-container input[type="range"] {
-  -webkit-appearance: none; /* Quita el estilo por defecto en Chrome/Safari */
-  appearance: none;
-  width: 100%;
-  height: 4px; /* Barra más delgada y elegante */
-  background: #444; /* Color de la vía */
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-/* Estilo del tirador (Thumb) para Chrome, Safari, Edge y Opera */
-.slider-container input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #a191ff; /* Tu color de acento */
-  border: 2px solid #ffffff; /* Borde blanco para resaltar */
-  border-radius: 50%; /* Forma circular */
-  cursor: pointer;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-  transition: transform 0.1s ease-in-out;
-}
-
-/* Efecto al pasar el mouse por el tirador */
-.slider-container input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  background: #b5a8ff; /* Un tono un poco más claro al hacer hover */
-}
-
-/* Estilo del tirador (Thumb) para Firefox */
-.slider-container input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  background: #a191ff;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-}
-
-/* Estilo de la etiqueta del valor numérico */
-.slider-value {
-  font-size: 11px;
-  font-family: 'Monaco', 'Consolas', monospace; /* Estilo técnico */
+/* Campos numéricos para RGB en tooltip */
+.rgb-field input[type='number'] {
+  appearance: auto;
+  cursor: text;
+  background: #1a1a1a;
+  border: 1px solid #444;
   color: #a191ff;
-  min-width: 20px;
-  text-align: right;
-  font-weight: bold;
+  border-radius: 4px;
+  width: 50px;
+  padding: 2px;
+}
+
+/* Focus en campos RGB */
+.rgb-field input:focus {
+  outline: 2px solid #a191ff;
+  background: #252525;
+}
+
+/* Eliminar flechas internas en RGB (WebKit) */
+.rgb-field input::-webkit-outer-spin-button,
+.rgb-field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Ajustes de input numérico RGB en Firefox */
+.rgb-field input[type='number'] {
+  -moz-appearance: textfield;
+  background: #252525;
+  border: 1px solid #444;
+  color: #a191ff;
+  border-radius: 4px;
+  width: 45px;
+  text-align: center;
+  padding: 4px;
+}
+
+/* Fila de campos RGB */
+.rgb-inputs-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+/* Contenedor de campo RGB + etiqueta */
+.rgb-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 10px;
+  color: #ccc;
 }

@@ -617,41 +617,49 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // RGB Inputs component (no alpha)
   interface RgbInputsProps { color: string; onColorChange: (c: string) => void }
-  const RgbInputs: React.FC<RgbInputsProps> = ({ color, onColorChange }) => {
-    const [inputs, setInputs] = useState<{ r: string; g: string; b: string }>({ r: '0', g: '0', b: '0' });
+  const RgbInputs: React.FC<{ color: string, onColorChange: (c: string) => void }> = ({ color, onColorChange }) => {
+    const parts = color.match(/\d+/g) || ["0", "0", "0"];
+    
+    // Estado local para que el input no dependa directamente del renderizado global al escribir
+    const [localValues, setLocalValues] = useState({
+      r: parts[0],
+      g: parts[1],
+      b: parts[2]
+    });
 
     useEffect(() => {
-      const p = parseRgba(color);
-      setInputs({ r: p.r.toString(), g: p.g.toString(), b: p.b.toString() });
+      const p = color.match(/\d+/g) || ["0", "0", "0"];
+      setLocalValues({ r: p[0], g: p[1], b: p[2] });
     }, [color]);
 
-    const handleChange = (comp: 'r' | 'g' | 'b', value: string) => {
-      setInputs(prev => ({ ...prev, [comp]: value }));
-      if (value === '') return;
-      let num = parseFloat(value);
-      if (isNaN(num)) return;
-      num = Math.min(255, Math.max(0, num));
-      const p = parseRgba(color);
-      const newR = comp === 'r' ? num : p.r;
-      const newG = comp === 'g' ? num : p.g;
-      const newB = comp === 'b' ? num : p.b;
-      onColorChange(`rgba(${Math.round(newR)}, ${Math.round(newG)}, ${Math.round(newB)}, ${p.a})`);
+    const handleInputChange = (channel: 'r' | 'g' | 'b', value: string) => {
+      setLocalValues(prev => ({ ...prev, [channel]: value }));
+
+      const num = parseInt(value);
+      if (!isNaN(num) && num >= 0 && num <= 255) {
+        const newValues = { ...localValues, [channel]: value };
+        onColorChange(`rgba(${newValues.r}, ${newValues.g}, ${newValues.b}, 1)`);
+      }
     };
 
     return (
-      <div className="rgb-inputs">
-        <div className="rgba-input-item">
-          <label>R</label>
-          <input className="color-component-input" type="number" min={0} max={255} value={inputs.r} onChange={e => handleChange('r', e.target.value)} />
-        </div>
-        <div className="rgba-input-item">
-          <label>G</label>
-          <input className="color-component-input" type="number" min={0} max={255} value={inputs.g} onChange={e => handleChange('g', e.target.value)} />
-        </div>
-        <div className="rgba-input-item">
-          <label>B</label>
-          <input className="color-component-input" type="number" min={0} max={255} value={inputs.b} onChange={e => handleChange('b', e.target.value)} />
-        </div>
+      <div className="rgb-inputs-row" onMouseDown={(e) => e.stopPropagation()}>
+        {[ {l: 'R', k: 'r'}, {l: 'G', k: 'g'}, {l: 'B', k: 'b'} ].map((item) => (
+          <div className="rgb-field" key={item.k}>
+            <label>{item.l}</label>
+            <input
+              type="number"
+              min="0"
+              max="255"
+              value={localValues[item.k as 'r'|'g'|'b']}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+              }}
+              onChange={(e) => handleInputChange(item.k as any, e.target.value)}
+              onFocus={(e) => e.target.select()}
+            />
+          </div>
+        ))}
       </div>
     );
   };
