@@ -112,37 +112,6 @@ export function setGlobalRotationDegrees(rxDeg: number, ryDeg: number, rzDeg: nu
 
 let currentUseAA = false;
 
-// export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): WebGLRenderingContext | null {
-//   // Guardar el estado solicitado (para compararlo si se intenta reinit)
-//   currentUseAA = !!useAA;
-
-//   console.log(`initWebGL called with useAA: ${useAA}`); // Debug log
-
-//   // Intentar obtener un contexto WebGL con la opción de antialias solicitada
-//   gl = canvas.getContext('webgl', {
-//     antialias: currentUseAA,
-//     preserveDrawingBuffer: true
-//   }) as WebGLRenderingContext | null;
-
-//   if (!gl) {
-//     console.error("WebGL no soportado");
-//     return null;
-//   }
-
-//   // Al (re)crear el contexto, los recursos previos (shaders/programs) ya no son válidos.
-//   renderProgram = null;
-//   pickingProgram = null;
-//   lineProgram = null;
-//   pointProgram = null;
-
-//   // Estado GL básico
-//   const canvasEl = gl.canvas as HTMLCanvasElement;
-//   gl.viewport(0, 0, canvasEl.width, canvasEl.height);
-//   gl.enable(gl.DEPTH_TEST);
-
-//   return gl;
-// }
-
 export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): WebGLRenderingContext | null {
   // Guardar el estado solicitado
   currentUseAA = !!useAA;
@@ -197,28 +166,6 @@ export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): We
   console.log(`Contexto WebGL creado con antialias: ${currentUseAA}`);
   return gl;
 }
-
-// Cambia el estado de antialiasing recreando el contexto si es necesario.
-// export function setAntialiasing(enabled: boolean, canvas: HTMLCanvasElement) {
-//   // Si ya está en el mismo estado, no hacemos nada
-//   if (currentUseAA === !!enabled && gl && (gl.canvas === canvas)) return;
-
-//   // Re-inicializar contexto con nuevo flag de AA
-//   const newGl = initWebGL(canvas, !!enabled);
-//   if (!newGl) {
-//     console.warn('No se pudo (re)inicializar WebGL con antialias=' + enabled);
-//     return false;
-//   }
-
-//   // Recrear shaders/programas y estado básico (las funciones exportadas pueden llamarse aquí)
-//   try {
-//     setupShaders();
-//   } catch (e) {
-//     console.warn('Error re-compilando shaders tras cambio de AA', e);
-//   }
-
-//   return true;
-// }
 
 export function setAntialiasing(enabled: boolean, canvas: HTMLCanvasElement) {
   console.log(`setAntialiasing: ${enabled}, currentUseAA: ${currentUseAA}`);
