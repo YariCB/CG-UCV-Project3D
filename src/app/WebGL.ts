@@ -18,6 +18,9 @@ let cameraPos: [number, number, number] = [0, 0, 0];
 let cameraFront: [number, number, number] = [0, 0, -1];
 let cameraUp: [number, number, number] = [0, 1, 0];
 
+// Variable para trackear soporte de antialiasing
+let glAntialiasSupported = true;
+
 export function setCamera(pos: [number, number, number], front: [number, number, number], up: [number, number, number]) {
   cameraPos = [pos[0], pos[1], pos[2]];
   cameraFront = [front[0], front[1], front[2]];
@@ -101,13 +104,145 @@ export function setGlobalRotationDegrees(rxDeg: number, ryDeg: number, rzDeg: nu
   quat.multiply(globalQuat, qz, tmp);
 }
 
-export function initWebGL(canvas: HTMLCanvasElement): boolean {
-  gl = canvas.getContext('webgl');
+let currentUseAA = false;
+
+// export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): WebGLRenderingContext | null {
+//   // Guardar el estado solicitado (para compararlo si se intenta reinit)
+//   currentUseAA = !!useAA;
+
+//   console.log(`initWebGL called with useAA: ${useAA}`); // Debug log
+
+//   // Intentar obtener un contexto WebGL con la opción de antialias solicitada
+//   gl = canvas.getContext('webgl', {
+//     antialias: currentUseAA,
+//     preserveDrawingBuffer: true
+//   }) as WebGLRenderingContext | null;
+
+//   if (!gl) {
+//     console.error("WebGL no soportado");
+//     return null;
+//   }
+
+//   // Al (re)crear el contexto, los recursos previos (shaders/programs) ya no son válidos.
+//   renderProgram = null;
+//   pickingProgram = null;
+//   lineProgram = null;
+//   pointProgram = null;
+
+//   // Estado GL básico
+//   const canvasEl = gl.canvas as HTMLCanvasElement;
+//   gl.viewport(0, 0, canvasEl.width, canvasEl.height);
+//   gl.enable(gl.DEPTH_TEST);
+
+//   return gl;
+// }
+
+export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): WebGLRenderingContext | null {
+  // Guardar el estado solicitado
+  currentUseAA = !!useAA;
+  
+  console.log(`initWebGL called with useAA: ${useAA}`); // Debug log
+
+  // Intentar obtener un contexto WebGL con la opción de antialias solicitada
+  const contextOptions = {
+    antialias: currentUseAA,
+    preserveDrawingBuffer: true
+  };
+
+  // Intentar con antialiasing primero si está solicitado
+  if (currentUseAA) {
+    gl = canvas.getContext('webgl', contextOptions) as WebGLRenderingContext | null;
+    glAntialiasSupported = !!gl;
+    
+    // Si falla, intentar sin antialiasing
+    if (!gl) {
+      console.warn("Antialiasing no soportado, intentando sin AA");
+      contextOptions.antialias = false;
+      gl = canvas.getContext('webgl', contextOptions) as WebGLRenderingContext | null;
+    }
+  } else {
+    // Sin antialiasing
+    contextOptions.antialias = false;
+    gl = canvas.getContext('webgl', contextOptions) as WebGLRenderingContext | null;
+  }
+
   if (!gl) {
-    console.error('El navegador no soporta WebGL.');
+    console.error("WebGL no soportado");
+    return null;
+  }
+
+  // Al (re)crear el contexto, los recursos previos (shaders/programs) ya no son válidos.
+  renderProgram = null;
+  pickingProgram = null;
+  lineProgram = null;
+  pointProgram = null;
+
+  // Estado GL básico
+  const canvasEl = gl.canvas as HTMLCanvasElement;
+  gl.viewport(0, 0, canvasEl.width, canvasEl.height);
+  gl.enable(gl.DEPTH_TEST);
+
+  console.log(`Contexto WebGL creado con antialias: ${currentUseAA}`);
+  return gl;
+}
+
+// Cambia el estado de antialiasing recreando el contexto si es necesario.
+// export function setAntialiasing(enabled: boolean, canvas: HTMLCanvasElement) {
+//   // Si ya está en el mismo estado, no hacemos nada
+//   if (currentUseAA === !!enabled && gl && (gl.canvas === canvas)) return;
+
+//   // Re-inicializar contexto con nuevo flag de AA
+//   const newGl = initWebGL(canvas, !!enabled);
+//   if (!newGl) {
+//     console.warn('No se pudo (re)inicializar WebGL con antialias=' + enabled);
+//     return false;
+//   }
+
+//   // Recrear shaders/programas y estado básico (las funciones exportadas pueden llamarse aquí)
+//   try {
+//     setupShaders();
+//   } catch (e) {
+//     console.warn('Error re-compilando shaders tras cambio de AA', e);
+//   }
+
+//   return true;
+// }
+
+export function setAntialiasing(enabled: boolean, canvas: HTMLCanvasElement) {
+  console.log(`setAntialiasing: ${enabled}, currentUseAA: ${currentUseAA}`);
+  
+  // Si ya está en el mismo estado, no hacemos nada
+  if (currentUseAA === !!enabled && gl && (gl.canvas === canvas)) {
+    console.log("AA ya está en el estado solicitado, saliendo");
     return false;
   }
-  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  // Guardar dimensiones actuales
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Re-inicializar contexto con nuevo flag de AA
+  const newGl = initWebGL(canvas, !!enabled);
+  if (!newGl) {
+    console.warn('No se pudo (re)inicializar WebGL con antialias=' + enabled);
+    return false;
+  }
+
+  // Restaurar dimensiones
+  newGl.canvas.width = width;
+  newGl.canvas.height = height;
+  newGl.viewport(0, 0, width, height);
+
+  // Recrear shaders/programas y estado básico
+  try {
+    setupShaders();
+    // Aplicar estados de depth y culling
+    setDepthTest(!!newGl.getParameter(newGl.DEPTH_TEST));
+    setCulling(!!newGl.getParameter(newGl.CULL_FACE));
+  } catch (e) {
+    console.warn('Error re-compilando shaders tras cambio de AA', e);
+  }
+
   return true;
 }
 

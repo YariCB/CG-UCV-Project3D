@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { quat } from 'gl-matrix';
-import { initWebGL, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera } from '../WebGL';
+import { initWebGL, setAntialiasing, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -515,7 +515,7 @@ const Canvas: React.FC<CanvasProps> = ({
     canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
     canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
 
-    const ok = initWebGL(canvas);
+    const ok = initWebGL(canvas, !!activeSettings.aa);
     if (!ok) {
       alert('Tu navegador no soporta WebGL.');
       return;
@@ -589,7 +589,7 @@ const Canvas: React.FC<CanvasProps> = ({
       canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
       canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
       
-      initWebGL(canvas);
+      initWebGL(canvas, !!activeSettings.aa);
       setupShaders();
       setDepthTest(!!depthEnabled);
       setCulling(!!cullingEnabled);
@@ -598,7 +598,23 @@ const Canvas: React.FC<CanvasProps> = ({
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [depthEnabled, cullingEnabled, handleRedraw]);
+  }, [depthEnabled, cullingEnabled, handleRedraw, activeSettings.aa]);
+
+  // Cuando cambie la opción de antialiasing, recrear contexto y shaders
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Llamada para recrear contexto si es necesario
+    const changed = setAntialiasing(!!activeSettings.aa, canvas);
+    if (changed) {
+      // Reaplicar estados y forzar un redraw
+      setupShaders();
+      setDepthTest(!!depthEnabled);
+      setCulling(!!cullingEnabled);
+      handleRedraw();
+    }
+  }, [activeSettings.aa, depthEnabled, cullingEnabled, handleRedraw]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

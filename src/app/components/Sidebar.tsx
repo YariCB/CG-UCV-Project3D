@@ -19,8 +19,7 @@ import {
   setGlobalRotationDegrees,
   centerAndNormalizeObject,
   resetView,
-  resetCameraToDefault,
-  computeTransformedBoundingBox
+  resetCameraToDefault
 } from '../WebGL';
 
 interface SidebarProps { 
@@ -417,6 +416,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         setMeshes(prev => [...prev]);
       }
 
+      if (key === 'aa') {
+        // setAntialiasing ya maneja internamente el re-render
+        console.log(`AA cambiado a: ${newState.aa}`);
+      }
+
       return newState;
     });
   };
@@ -664,6 +668,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar-section">
           <h3 className="section-title">Configuración de Escena</h3>
           <div className="tool-group">
+
+            {/* Botón de FPS */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.fps ? 'active' : ''}`} 
@@ -675,6 +681,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.fps}</span>
             </div>
 
+            {/* Botón de Antialiasing */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.aa ? 'active' : ''}`} 
@@ -686,6 +693,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.aa}</span>
             </div>
 
+            {/* Botón de Z-Buffer */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.zBuffer ? 'active' : ''}`} 
@@ -697,6 +705,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span className="tool-button-label">{buttonLabels.zBuffer}</span>
             </div>
 
+            {/* Botón de Culling */}
             <div className="tool-button-wrapper">
               <button 
                 className={`sidebar-button ${activeSettings.culling ? 'active' : ''}`} 
