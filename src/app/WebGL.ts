@@ -6,6 +6,12 @@ let renderProgram: WebGLProgram | null = null;
 let pickingProgram: WebGLProgram | null = null;
 let lineProgram: WebGLProgram | null = null;
 let pointProgram: WebGLProgram | null = null;
+// Post-process program and resources for FXAA / blur-based AA
+let fxaaProgram: WebGLProgram | null = null;
+let fxaaFBO: WebGLFramebuffer | null = null;
+let fxaaTexture: WebGLTexture | null = null;
+let fxaaDepthRB: WebGLRenderbuffer | null = null;
+let quadVBO: WebGLBuffer | null = null;
 
 // Rotación global (cuaternión) y pila de deshacer
 let globalQuat = quat.create();
@@ -176,6 +182,12 @@ export function initWebGL(canvas: HTMLCanvasElement, useAA: boolean = false): We
   pickingProgram = null;
   lineProgram = null;
   pointProgram = null;
+  // Limpiar recursos de post-proceso (se recrearán si es necesario)
+  fxaaProgram = null;
+  fxaaFBO = null;
+  fxaaTexture = null;
+  fxaaDepthRB = null;
+  quadVBO = null;
 
   // Estado GL básico
   const canvasEl = gl.canvas as HTMLCanvasElement;
@@ -339,6 +351,141 @@ export function setupShaders() {
   renderProgram = createProgram(vsSource, fsRender);
   pickingProgram = createProgram(vsSource, fsPicking);
   gl!.useProgram(renderProgram);
+}
+
+// Ensure FXAA / post-process resources exist for current canvas size
+function ensureFXAAResources() {
+  if (!gl) return;
+  const canvas = gl.canvas as HTMLCanvasElement;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  if (!fxaaProgram) {
+    // Vertex shader for fullscreen quad
+    const quadVs = `
+      attribute vec2 aPosition;
+      attribute vec2 aTexCoord;
+      varying vec2 vTexCoord;
+      void main() {
+        vTexCoord = aTexCoord;
+        gl_Position = vec4(aPosition, 0.0, 1.0);
+      }
+    `;
+
+    // Simple 3x3 blur as post-process (produces visible smoothing)
+    const quadFs = `
+      precision mediump float;
+      varying vec2 vTexCoord;
+      uniform sampler2D uTexture;
+      uniform vec2 uResolution;
+
+      void main() {
+        vec2 texel = 1.0 / uResolution;
+        vec3 result = vec3(0.0);
+        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0, -1.0)).rgb * 0.075;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0, -1.0)).rgb * 0.125;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0, -1.0)).rgb * 0.075;
+
+        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0,  0.0)).rgb * 0.125;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0,  0.0)).rgb * 0.200;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0,  0.0)).rgb * 0.125;
+
+        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0,  1.0)).rgb * 0.075;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0,  1.0)).rgb * 0.125;
+        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0,  1.0)).rgb * 0.075;
+
+        gl_FragColor = vec4(result, 1.0);
+      }
+    `;
+
+    fxaaProgram = createProgram(quadVs, quadFs);
+  }
+
+  // Create or resize texture + FBO
+  if (!fxaaTexture) fxaaTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fxaaTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  // Evitar repeat en NPOT textures
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  if (!fxaaDepthRB) fxaaDepthRB = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, fxaaDepthRB);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+  if (!fxaaFBO) fxaaFBO = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fxaaFBO);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fxaaTexture, 0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, fxaaDepthRB);
+
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    console.warn('FXAA framebuffer not complete: ' + status);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  // Create quad VBO
+  if (!quadVBO) {
+    const quadData = new Float32Array([
+      -1, -1, 0, 0,
+       1, -1, 1, 0,
+      -1,  1, 0, 1,
+       1,  1, 1, 1
+    ]);
+    quadVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, quadData, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  }
+}
+
+function drawPostProcess() {
+  if (!gl || !fxaaProgram || !fxaaTexture || !quadVBO) return;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  const canvas = gl.canvas as HTMLCanvasElement;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  // Guardar estados previos
+  const wasDepth = gl.isEnabled(gl.DEPTH_TEST);
+  const wasCull = gl.isEnabled(gl.CULL_FACE);
+
+  // Limpiar color y profundidad del framebuffer por defecto
+  gl.clearColor(0,0,0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // Deshabilitar depth/cull para dibujar el quad en pantalla completa
+  if (wasDepth) gl.disable(gl.DEPTH_TEST);
+  if (wasCull) gl.disable(gl.CULL_FACE);
+
+  gl.useProgram(fxaaProgram);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fxaaTexture);
+  const uTex = gl.getUniformLocation(fxaaProgram, 'uTexture');
+  const uRes = gl.getUniformLocation(fxaaProgram, 'uResolution');
+  if (uTex) gl.uniform1i(uTex, 0);
+  if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+  const aPos = gl.getAttribLocation(fxaaProgram, 'aPosition');
+  const aTex = gl.getAttribLocation(fxaaProgram, 'aTexCoord');
+  if (aPos >= 0) {
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+  }
+  if (aTex >= 0) {
+    gl.enableVertexAttribArray(aTex);
+    gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
+  }
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  // Restaurar estados previos
+  if (wasCull) gl.enable(gl.CULL_FACE);
+  if (wasDepth) gl.enable(gl.DEPTH_TEST);
 }
 
 type Mesh = {
@@ -541,9 +688,28 @@ export function redraw(
   }
   
   const canvas = gl.canvas as HTMLCanvasElement;
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // Si AA por post-proceso está activo, renderizamos la escena a un FBO
+  if (currentUseAA) {
+    ensureFXAAResources();
+    if (fxaaFBO && fxaaTexture) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fxaaFBO);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    } else {
+      // fallback to default framebuffer
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
+  } else {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  }
 
   // Calcular centro global (necesario para rotaciones globales)
   if (meshes.length > 0) {
@@ -626,6 +792,12 @@ export function redraw(
     const globalColor: [number, number, number] = globalBBoxColor || [1, 0, 0];
     drawGlobalBoundingBox(meshes, globalColor);
   }
+
+  // Si estábamos renderizando a FBO por AA, aplicar post-process y presentar
+  if (currentUseAA && fxaaFBO && fxaaTexture) {
+    // Asegurarnos de que la textura del FBO está actualizada (ya lo está al renderizar a FBO)
+    drawPostProcess();
+  }
 }
 
 export function setDepthTest(enabled: boolean) {
@@ -671,6 +843,8 @@ function drawMeshPicking(mesh: Mesh) {
 function renderForPicking(meshes: Mesh[]) {
   if (!gl || !pickingProgram) return;
   const canvas = gl.canvas as HTMLCanvasElement;
+  // Ensure rendering to default framebuffer for accurate pixel picking
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, canvas.width, canvas.height);
   // Fondo negro sólido para el picking
   gl.clearColor(0, 0, 0, 1);
