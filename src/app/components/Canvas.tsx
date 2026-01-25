@@ -1,6 +1,20 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { quat } from 'gl-matrix';
-import { initWebGL, setAntialiasing, setupShaders, setDepthTest, setCulling, redraw, pickAt, pushGlobalRotation, applyDeltaGlobalQuat, getRotationSensitivity, setCamera, getCamera } from '../WebGL';
+import {
+  initWebGL,
+  setAntialiasing,
+  setupShaders,
+  setDepthTest,
+  setCulling,
+  redraw,
+  pickAt, 
+  pushGlobalRotation, 
+  applyDeltaGlobalQuat, 
+  getRotationSensitivity, 
+  setCamera, 
+  getCamera,
+  getGlobalRotationDegrees
+ } from '../WebGL';
 import '../../styles/style.css';
 
 interface CanvasProps {
@@ -256,7 +270,7 @@ const Canvas: React.FC<CanvasProps> = ({
       e.preventDefault();
     }
   }, [meshes, bgColor, selectedMeshId, setMeshes, parseRgba, activeSettings]);
-
+  
   // DRAG - mousemove
   const handleMouseMove = useCallback((e: MouseEvent) => {
     // Primero: si el usuario está en modo 'look' con Alt (o Ctrl) y no está arrastrando/rotando objetos,
@@ -375,18 +389,39 @@ const Canvas: React.FC<CanvasProps> = ({
       const worldHeight = 2 * Math.tan(fov / 2) * Math.abs(currentZ);
       const worldWidth = worldHeight * aspect;
       
-      const moveX = (deltaX / rect.width) * worldWidth;
-      const moveY = -(deltaY / rect.height) * worldHeight;
-
+      // Calcular movimiento en pantalla
+      const screenMoveX = (deltaX / rect.width) * worldWidth;
+      const screenMoveY = -(deltaY / rect.height) * worldHeight;
+      
+      // Obtener la rotación global actual (del objeto completo)
+      const globalRotation = getGlobalRotationDegrees(); // Necesitas importar esta función
+      
+      // Convertir ángulos de Euler a matriz de rotación
+      const rx = globalRotation[0] * Math.PI / 180;
+      const ry = globalRotation[1] * Math.PI / 180;
+      const rz = globalRotation[2] * Math.PI / 180;
+      
+      // Crear matriz de rotación 3x3
+      const cosZ = Math.cos(rz), sinZ = Math.sin(rz);
+      const cosY = Math.cos(ry), sinY = Math.sin(ry);
+      
+      // Rotar el vector de movimiento según la rotación global en el plano XY
+      const moveX = screenMoveX * cosZ - screenMoveY * sinZ;
+      const moveY = screenMoveX * sinZ + screenMoveY * cosZ;
+      
+      // Aplicar también la rotación en Y si es necesario
+      const finalMoveX = moveX * cosY;
+      const finalMoveZ = moveX * sinY;
+      
       setMeshes(prevMeshes =>
         prevMeshes.map(mesh =>
           mesh.id === selectedMeshId
             ? {
                 ...mesh,
                 translate: [
-                  (mesh.translate?.[0] || 0) + moveX,
+                  (mesh.translate?.[0] || 0) + finalMoveX,
                   (mesh.translate?.[1] || 0) + moveY,
-                  currentZ
+                  (mesh.translate?.[2] || currentZ) - finalMoveZ
                 ]
               }
             : mesh
