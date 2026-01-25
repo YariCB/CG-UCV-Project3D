@@ -372,29 +372,51 @@ function ensureFXAAResources() {
       }
     `;
 
-    // Simple 3x3 blur as post-process (produces visible smoothing)
+    // FXAA shader (faster, preserves sharpness while removing aliasing)
     const quadFs = `
       precision mediump float;
       varying vec2 vTexCoord;
       uniform sampler2D uTexture;
       uniform vec2 uResolution;
 
+      #define FXAA_REDUCE_MIN   (1.0/128.0)
+      #define FXAA_REDUCE_MUL   (1.0/8.0)
+      #define FXAA_SPAN_MAX     8.0
+
       void main() {
-        vec2 texel = 1.0 / uResolution;
-        vec3 result = vec3(0.0);
-        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0, -1.0)).rgb * 0.075;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0, -1.0)).rgb * 0.125;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0, -1.0)).rgb * 0.075;
+        vec2 invRes = 1.0 / uResolution;
+        vec3 rgbM = texture2D(uTexture, vTexCoord).rgb;
+        vec3 rgbNW = texture2D(uTexture, vTexCoord + vec2(-1.0, -1.0) * invRes).rgb;
+        vec3 rgbNE = texture2D(uTexture, vTexCoord + vec2( 1.0, -1.0) * invRes).rgb;
+        vec3 rgbSW = texture2D(uTexture, vTexCoord + vec2(-1.0,  1.0) * invRes).rgb;
+        vec3 rgbSE = texture2D(uTexture, vTexCoord + vec2( 1.0,  1.0) * invRes).rgb;
 
-        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0,  0.0)).rgb * 0.125;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0,  0.0)).rgb * 0.200;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0,  0.0)).rgb * 0.125;
+        float lumaM  = dot(rgbM, vec3(0.299, 0.587, 0.114));
+        float lumaNW = dot(rgbNW, vec3(0.299, 0.587, 0.114));
+        float lumaNE = dot(rgbNE, vec3(0.299, 0.587, 0.114));
+        float lumaSW = dot(rgbSW, vec3(0.299, 0.587, 0.114));
+        float lumaSE = dot(rgbSE, vec3(0.299, 0.587, 0.114));
 
-        result += texture2D(uTexture, vTexCoord + texel * vec2(-1.0,  1.0)).rgb * 0.075;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 0.0,  1.0)).rgb * 0.125;
-        result += texture2D(uTexture, vTexCoord + texel * vec2( 1.0,  1.0)).rgb * 0.075;
+        float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+        float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
 
-        gl_FragColor = vec4(result, 1.0);
+        vec2 dir;
+        dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+        dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+        float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);
+        float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+        dir = clamp(dir * rcpDirMin, -FXAA_SPAN_MAX, FXAA_SPAN_MAX) * invRes;
+
+        vec3 result1 = 0.5 * ( texture2D(uTexture, vTexCoord + dir * (1.0/3.0 - 0.5)).rgb + texture2D(uTexture, vTexCoord + dir * (2.0/3.0 - 0.5)).rgb );
+        vec3 result2 = result1 * 0.5 + 0.25 * ( texture2D(uTexture, vTexCoord + dir * -0.5).rgb + texture2D(uTexture, vTexCoord + dir * 0.5).rgb );
+
+        float lumaResult2 = dot(result2, vec3(0.299,0.587,0.114));
+        if (lumaResult2 < lumaMin || lumaResult2 > lumaMax) {
+          gl_FragColor = vec4(result1, 1.0);
+        } else {
+          gl_FragColor = vec4(result2, 1.0);
+        }
       }
     `;
 
