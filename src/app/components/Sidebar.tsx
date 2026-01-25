@@ -518,6 +518,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const objText = await objFile.text();
     const objData = parseOBJ(objText);
+    resetGlobalRotation();
 
     // Buscar MTL: preferir el mtllib indicado en el OBJ, si existe; intentar emparejar por nombre/base
     let materials: Record<string, Material> = {};
