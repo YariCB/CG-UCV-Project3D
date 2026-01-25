@@ -19,7 +19,8 @@ import {
   setGlobalRotationDegrees,
   centerAndNormalizeObject,
   resetView,
-  resetCameraToDefault
+  resetCameraToDefault,
+  exportSceneOBJ
 } from '../WebGL';
 
 interface SidebarProps { 
@@ -214,6 +215,47 @@ const Sidebar: React.FC<SidebarProps> = ({
     bbox: 'Bounding Box Global',
     center: 'Centrar Objeto',
     reset: 'Reiniciar',
+  };
+
+  // Export / Save scene handler
+  const handleSaveScene = () => {
+    try {
+      const { obj, mtl } = exportSceneOBJ(meshes);
+
+      const time = Date.now();
+      const objName = `scene_${time}.obj`;
+      const mtlName = `scene_${time}.mtl`;
+
+      // Ensure obj references mtl filename we will save
+      const objText = `mtllib ${mtlName}\n\n${obj}`;
+
+      // Trigger downloads
+      const blobObj = new Blob([objText], { type: 'text/plain' });
+      const urlObj = URL.createObjectURL(blobObj);
+      const aObj = document.createElement('a');
+      aObj.href = urlObj;
+      aObj.download = objName;
+      document.body.appendChild(aObj);
+      aObj.click();
+      aObj.remove();
+      URL.revokeObjectURL(urlObj);
+
+      const blobMtl = new Blob([mtl], { type: 'text/plain' });
+      const urlMtl = URL.createObjectURL(blobMtl);
+      const aMtl = document.createElement('a');
+      aMtl.href = urlMtl;
+      aMtl.download = mtlName;
+      document.body.appendChild(aMtl);
+      aMtl.click();
+      aMtl.remove();
+      URL.revokeObjectURL(urlMtl);
+    } catch (err) {
+      console.error('Error saving scene', err);
+      setModalTitle('Error al guardar');
+      setModalMessage('No se pudo generar el archivo OBJ/MTL. Revisa la consola.');
+      setModalOnConfirm(() => () => setModalOpen(false));
+      setModalOpen(true);
+    }
   };
 
   // Resetear objeto
@@ -655,7 +697,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               Archivo
             </button>
-            <button className="sidebar-button save-btn" title="Guardar Escena">
+            <button className="sidebar-button save-btn" title="Guardar Escena" onClick={handleSaveScene}>
               <ion-icon name="save-sharp"></ion-icon>
             </button>
           </div>

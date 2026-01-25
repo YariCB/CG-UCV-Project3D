@@ -1,4 +1,4 @@
-import { mat4, vec4, vec3, quat } from 'gl-matrix';
+import { mat4, vec4, vec3, quat, mat3 } from 'gl-matrix';
 import { computeBoundingBox } from './lib/objLoader';
 
 let gl: WebGLRenderingContext | null = null;
@@ -1674,4 +1674,105 @@ export function resetView() {
 
 export function resetCameraToDefault() {
   setCamera([0, 0, 0], [0, 0, -1], [0, 1, 0]);
+}
+
+// Export current scene (meshes) to OBJ + MTL text, baking all transforms (local and global)
+export function exportSceneOBJ(meshes: any[]): { obj: string; mtl: string } {
+  if (!meshes) meshes = [];
+
+  // Global transform: translate(globalCenter) * fromQuat(globalQuat) * translate(-globalCenter)
+  const globalTransform = mat4.create();
+  mat4.translate(globalTransform, globalTransform, globalCenter);
+  const rotMat = mat4.create();
+  mat4.fromQuat(rotMat, globalQuat);
+  mat4.multiply(globalTransform, globalTransform, rotMat);
+  mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+
+  let objLines: string[] = [];
+  let mtlLines: string[] = [];
+  const mtlName = 'scene_materials.mtl';
+  objLines.push(`# Exported by CG App`);
+  objLines.push(`mtllib ${mtlName}`);
+
+  let vertOffset = 1; // OBJ indices are 1-based
+  let normalOffset = 1;
+  let matIndex = 0;
+
+  meshes.forEach((mesh, mi) => {
+    const name = mesh.name || `mesh_${mi}`;
+    const mat = `mat_${mi}`;
+
+    // Build model matrix for this mesh (local transforms)
+    const model = calculateModelMatrix(mesh);
+    // Combined transform = globalTransform * model
+    const combined = mat4.create();
+    mat4.multiply(combined, globalTransform, model);
+
+    // Transform vertices
+    const transformedVerts: number[][] = mesh.vertices.map((v: number[]) => {
+      const tmp = vec4.create();
+      vec4.transformMat4(tmp, vec4.fromValues(v[0], v[1], v[2], 1), combined);
+      return [tmp[0], tmp[1], tmp[2]];
+    });
+
+    // Transform normals if present
+    let transformedNormals: number[][] | undefined = undefined;
+    if (mesh.normals && mesh.normals.length > 0) {
+      transformedNormals = mesh.normals.map((n: number[]) => {
+        const m3 = mat3.create();
+        mat3.normalFromMat4(m3, combined);
+        const out = vec3.create();
+        vec3.transformMat3(out, n as any, m3);
+        const l = Math.hypot(out[0], out[1], out[2]) || 1;
+        return [out[0]/l, out[1]/l, out[2]/l];
+      });
+    }
+
+    // Write object header and material use
+    objLines.push(`\no ${name}`);
+    objLines.push(`usemtl ${mat}`);
+
+    // Emit vertices
+    transformedVerts.forEach(v => objLines.push(`v ${v[0]} ${v[1]} ${v[2]}`));
+
+    // Emit normals (if any)
+    if (transformedNormals) {
+      transformedNormals.forEach(n => objLines.push(`vn ${n[0]} ${n[1]} ${n[2]}`));
+    }
+
+    // Faces: mesh.faces uses indices into mesh.vertices (0-based), triangulated in code when drawing
+    // We'll triangulate here similarly (fan)
+    mesh.faces.forEach((face: any) => {
+      const verts = face.v;
+      if (!verts || verts.length < 3) return;
+      for (let i = 1; i < verts.length - 1; i++) {
+        const idx = [verts[0], verts[i], verts[i+1]];
+        const fParts = idx.map(vIdx => {
+          const vi = vIdx + vertOffset;
+          if (transformedNormals) {
+            const ni = vIdx + normalOffset;
+            return `${vi}//${ni}`;
+          }
+          return `${vi}`;
+        });
+        objLines.push(`f ${fParts.join(' ')}`);
+      }
+    });
+
+    // MTL entry: derive Kd from mesh.color (assumed normalized [0..1]) or fallback
+    const c = mesh.color || [0.7, 0.7, 0.7];
+    const kd = [c[0], c[1], c[2]];
+    mtlLines.push(`newmtl ${mat}`);
+    mtlLines.push(`Ka 0.000000 0.000000 0.000000`);
+    mtlLines.push(`Kd ${kd[0]} ${kd[1]} ${kd[2]}`);
+    mtlLines.push(`Ks 0.000000 0.000000 0.000000`);
+    mtlLines.push(`d 1.0`);
+    mtlLines.push(`illum 2`);
+
+    vertOffset += transformedVerts.length;
+    if (transformedNormals) normalOffset += transformedNormals.length;
+    matIndex++;
+  });
+
+  return { obj: objLines.join('\n'), mtl: mtlLines.join('\n') };
 }
