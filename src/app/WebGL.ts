@@ -1723,3 +1723,66 @@ export function exportSceneOBJ(meshes: any[]): { obj: string; mtl: string } {
 
   return { obj: objLines.join('\n'), mtl: mtlLines.join('\n') };
 }
+
+// Convert a local point (in mesh local coordinates) to world coordinates
+export function localToWorld(mesh: any, point: [number, number, number]): [number, number, number] {
+  const model = calculateModelMatrix(mesh);
+  const globalTransform = mat4.create();
+  mat4.translate(globalTransform, globalTransform, globalCenter);
+  const rotMat = mat4.create();
+  mat4.fromQuat(rotMat, globalQuat);
+  mat4.multiply(globalTransform, globalTransform, rotMat);
+  mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+
+  const combined = mat4.create();
+  mat4.multiply(combined, globalTransform, model);
+
+  const tmp = vec4.create();
+  vec4.transformMat4(tmp, vec4.fromValues(point[0], point[1], point[2], 1), combined);
+  return [tmp[0], tmp[1], tmp[2]];
+}
+
+// Get the global transform matrix (global rotation around globalCenter)
+export function getGlobalTransformMatrix(): mat4 {
+  const globalTransform = mat4.create();
+  mat4.translate(globalTransform, globalTransform, globalCenter);
+  const rotMat = mat4.create();
+  mat4.fromQuat(rotMat, globalQuat);
+  mat4.multiply(globalTransform, globalTransform, rotMat);
+  mat4.translate(globalTransform, globalTransform, [-globalCenter[0], -globalCenter[1], -globalCenter[2]]);
+  return globalTransform;
+}
+
+// Compute model matrix without the mesh.translate (only centering + scale), and transform a local point
+export function modelNoTranslateLocalPoint(mesh: any, point: [number, number, number]): [number, number, number] {
+  const model = mat4.create();
+  if (mesh.center) mat4.translate(model, model, [-mesh.center[0], -mesh.center[1], -mesh.center[2]]);
+  if (mesh.scale) {
+    if (typeof mesh.scale === 'number') mat4.scale(model, model, [mesh.scale, mesh.scale, mesh.scale]);
+    else if (Array.isArray(mesh.scale) && mesh.scale.length === 3) mat4.scale(model, model, [mesh.scale[0], mesh.scale[1], mesh.scale[2]]);
+  }
+  const tmp = vec4.create();
+  vec4.transformMat4(tmp, vec4.fromValues(point[0], point[1], point[2], 1), model);
+  return [tmp[0], tmp[1], tmp[2]];
+}
+
+// Given a desired world-space position for a local reference point (mesh.center or provided point),
+// compute the `translate` vector that the mesh should have so that after model and global transforms
+// the reference point ends up at desiredWorld.
+export function computeTranslateForDesiredWorld(mesh: any, desiredWorld: [number, number, number], localPoint: [number, number, number] | null = null): [number, number, number] {
+  const lp = localPoint || (mesh.center ? mesh.center : [0,0,0]);
+  // p' = model without translate applied to local point
+  const pPrime = modelNoTranslateLocalPoint(mesh, lp);
+
+  const globalTransform = getGlobalTransformMatrix();
+  const invGlobal = mat4.create();
+  if (!mat4.invert(invGlobal, globalTransform)) {
+    // fallback: no inversion
+    return [ (desiredWorld[0] - pPrime[0]), (desiredWorld[1] - pPrime[1]), (desiredWorld[2] - pPrime[2]) ];
+  }
+
+  const tmp = vec4.create();
+  vec4.transformMat4(tmp, vec4.fromValues(desiredWorld[0], desiredWorld[1], desiredWorld[2], 1), invGlobal);
+  // t = invGlobal * desiredWorld - pPrime
+  return [ tmp[0] - pPrime[0], tmp[1] - pPrime[1], tmp[2] - pPrime[2] ];
+}
