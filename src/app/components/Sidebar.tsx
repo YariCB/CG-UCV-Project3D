@@ -750,9 +750,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 setModalOpen(true);
               }}
             >
-              Archivo
+              Importar Obj
             </button>
-            <button className="sidebar-button save-btn" title="Guardar Escena" onClick={handleSaveScene}>
+            <button className="sidebar-button save-btn" title="Exportar Obj" onClick={handleSaveScene}>
               <ion-icon name="save-sharp"></ion-icon>
             </button>
           </div>
@@ -816,7 +816,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           
           <div className="input-row">
-            <label>Fondo</label>
+            <label>Color de Fondo</label>
               <div className="color-picker-relative-container">
               <div className="preview-group" ref={previewBgRef as any}>
                 <button className="color-preview-button sidebar-button" onClick={() => setOpenPicker(openPicker === 'bg' ? null : 'bg')}>
@@ -1230,7 +1230,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <button
                 className="sidebar-button rotation-reset-btn"
-                title="Deshacer última rotación global"
+                title="Deshacer última rotación"
                 onClick={() => {
                   undoGlobalRotation();
                   // Forzar redraw actualizando meshes sin cambiar datos
