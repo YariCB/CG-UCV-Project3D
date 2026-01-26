@@ -1,6 +1,6 @@
 # CG2 App - Visor de Objetos 3D
 
-Aplicación de visualización y manipulación de mallas OBJ con soporte para transformaciones y herramientas de inspección geométrica implementada con herramientas web (React y TypeScript, manejando WebGL y GLSL, y siendo empaquetada con NW.js para su portabilidad).
+Aplicación de visualización y manipulación de objetos 3D con soporte para transformaciones y herramientas de inspección geométrica implementada con herramientas web (React y TypeScript, manejando WebGL y GLSL, y siendo empaquetada con NW.js para su portabilidad).
 
 Elaborada en la asignatura de Introducción a la Computación Gráfica de la Escuela de Computación de la Universidad Central de Venezuela durante el semestre 2-2025.
 
