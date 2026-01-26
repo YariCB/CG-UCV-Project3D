@@ -420,6 +420,76 @@ input[type='number'] {
   appearance: textfield;
 }
 
+/* Contenedor del input y las flechas */
+.styled-number-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.styled-number-wrapper:focus-within {
+  border-color: #a191ff;
+}
+
+/* El input propiamente */
+.styled-number-wrapper input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 5px 25px 5px 8px; /* Espacio a la derecha para las flechas */
+  font-family: 'Monospace', monospace;
+  font-size: 12px;
+  outline: none;
+}
+
+/* Contenedor de los botones */
+.number-controls {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 20px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #444;
+  background: #252525;
+}
+
+/* Botones individuales */
+.number-controls button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.number-controls button ion-icon {
+  font-size: 10px;
+}
+
+.number-controls button:hover {
+  background: #a191ff;
+  color: #fff;
+}
+
+/* El botón de abajo necesita un borde superior para separarse */
+.num-down {
+  border-top: 1px solid #444 !important;
+}
+
 /* Wrapper para input con unidad (rotación) */
 .xyz-input-with-unit {
   position: relative;

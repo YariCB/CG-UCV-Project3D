@@ -23,6 +23,52 @@ import {
   exportSceneOBJ
 } from '../WebGL';
 
+
+const StyledNumberInput: React.FC<{
+  value: number,
+  onChange: (val: number) => void,
+  step?: number,
+  onStep?: (delta: number) => void
+}> = ({ value, onChange, step = 0.1, onStep }) => {
+
+  const handleStep = (dir: number) => {
+    const delta = dir * step;
+    const next = Number((value + delta).toFixed(2));
+    onChange(next);
+    if (onStep) onStep(delta);
+  };
+
+  return (
+    <div className="styled-number-wrapper" onMouseDown={e => e.stopPropagation()}>
+      <input 
+        type="number" 
+        step={step} 
+        value={value} 
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            handleStep(1);
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            handleStep(-1);
+          }
+        }} 
+      />
+      <div className="number-controls">
+        <button className="num-up" onClick={(e) => { e.stopPropagation(); handleStep(1); }}>
+          <ion-icon name="chevron-up-outline"></ion-icon>
+        </button>
+        <button className="num-down" onClick={(e) => { e.stopPropagation(); handleStep(-1); }}>
+          <ion-icon name="chevron-down-outline"></ion-icon>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 interface SidebarProps { 
   bgColor: string; 
   setBgColor: (c: string) => void; 
@@ -1007,59 +1053,103 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h3 className="section-title">Transformaciones</h3>
 
           <div className="transform-group">
-              <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
-              <div className="xyz-inputs">
-                <input type="number" placeholder="X" step="0.1" value={translateGlobalX} onChange={(e) => {
-                  const v = e.target.value; setTranslateGlobalX(v);
-                  const num = parseFloat(v) || 0;
+            <label className="label-small">Traslación del Objeto (X, Y, Z)</label>
+            <div className="xyz-inputs">
+              <StyledNumberInput 
+                value={parseFloat(translateGlobalX) || 0}
+                step={0.1}
+                onChange={(v) => {
+                  setTranslateGlobalX(String(v));
+                  const num = v || 0;
                   setMeshes(prev => prev.map(m => ({ ...m, translate: [num, m.translate?.[1]||0, m.translate?.[2]||0] })));
-                }} />
-                <input type="number" placeholder="Y" step="0.1" value={translateGlobalY} onChange={(e) => {
-                  const v = e.target.value; setTranslateGlobalY(v);
-                  const num = parseFloat(v) || 0;
+                }}
+                onStep={(delta) => {
+                  const nextV = (parseFloat(translateGlobalX as string) || 0) + delta;
+                  const formatted = nextV.toFixed(1);
+                  setTranslateGlobalX(formatted);
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [parseFloat(formatted), m.translate?.[1]||0, m.translate?.[2]||0] })));
+                }}
+              />
+              
+              <StyledNumberInput 
+                value={parseFloat(translateGlobalY) || 0}
+                step={0.1}
+                onChange={(v) => {
+                  setTranslateGlobalY(String(v));
+                  const num = v || 0;
                   setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, num, m.translate?.[2]||0] })));
-                }} />
-                <input type="number" placeholder="Z" step="0.1" value={translateGlobalZ} onChange={(e) => {
-                  const v = e.target.value; setTranslateGlobalZ(v);
-                  const num = parseFloat(v) || 0;
+                }}
+                onStep={(delta) => {
+                  const nextV = (parseFloat(translateGlobalY as string) || 0) + delta;
+                  const formatted = nextV.toFixed(1);
+                  setTranslateGlobalY(formatted);
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, parseFloat(formatted), m.translate?.[2]||0] })));
+                }}
+              />
+
+              <StyledNumberInput 
+                value={parseFloat(translateGlobalZ) || 0}
+                step={0.1}
+                onChange={(v) => {
+                  setTranslateGlobalZ(String(v));
+                  const num = v || 0;
                   setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, num] })));
-                }} />
-              </div>
+                }}
+                onStep={(delta) => {
+                  const nextV = (parseFloat(translateGlobalZ as string) || 0) + delta;
+                  const formatted = nextV.toFixed(1);
+                  setTranslateGlobalZ(formatted);
+                  setMeshes(prev => prev.map(m => ({ ...m, translate: [m.translate?.[0]||0, m.translate?.[1]||0, parseFloat(formatted)] })));
+                }}
+              />
+            </div>
           </div>
 
           <div className="transform-group">
               <label className="label-small">Escala del Objeto (X, Y, Z)</label>
               <div className="xyz-inputs">
-                <input type="number" placeholder="X" step="0.1" value={scaleX} onChange={(e) => {
-                  const v = e.target.value; setScaleX(v);
-                  const num = parseFloat(v) || 1;
-                  setMeshes(prev => prev.map(mesh => ({
-                    ...mesh,
-                    scale: Array.isArray(mesh.scale) 
-                      ? [num, mesh.scale[1] || 1, mesh.scale[2] || 1]
-                      : [num, mesh.scale || 1, mesh.scale || 1]
-                  })));
-                }} />
-                <input type="number" placeholder="Y" step="0.1" value={scaleY} onChange={(e) => {
-                  const v = e.target.value; setScaleY(v);
-                  const num = parseFloat(v) || 1;
-                  setMeshes(prev => prev.map(mesh => ({
-                    ...mesh,
-                    scale: Array.isArray(mesh.scale) 
-                      ? [mesh.scale[0] || 1, num, mesh.scale[2] || 1]
-                      : [mesh.scale || 1, num, mesh.scale || 1]
-                  })));
-                }} />
-                <input type="number" placeholder="Z" step="0.1" value={scaleZ} onChange={(e) => {
-                  const v = e.target.value; setScaleZ(v);
-                  const num = parseFloat(v) || 1;
-                  setMeshes(prev => prev.map(mesh => ({
-                    ...mesh,
-                    scale: Array.isArray(mesh.scale) 
-                      ? [mesh.scale[0] || 1, mesh.scale[1] || 1, num]
-                      : [mesh.scale || 1, mesh.scale || 1, num]
-                  })));
-                }} />
+                <StyledNumberInput
+                  value={parseFloat(scaleX) || 1}
+                  step={0.1}
+                  onChange={(v) => {
+                    setScaleX(String(v));
+                    const num = v || 1;
+                    setMeshes(prev => prev.map(mesh => ({
+                      ...mesh,
+                      scale: Array.isArray(mesh.scale)
+                        ? [num, mesh.scale[1] || 1, mesh.scale[2] || 1]
+                        : [num, mesh.scale || 1, mesh.scale || 1]
+                    })));
+                  }}
+                />
+                <StyledNumberInput
+                  value={parseFloat(scaleY) || 1}
+                  step={0.1}
+                  onChange={(v) => {
+                    setScaleY(String(v));
+                    const num = v || 1;
+                    setMeshes(prev => prev.map(mesh => ({
+                      ...mesh,
+                      scale: Array.isArray(mesh.scale)
+                        ? [mesh.scale[0] || 1, num, mesh.scale[2] || 1]
+                        : [mesh.scale || 1, num, mesh.scale || 1]
+                    })));
+                  }}
+                />
+                <StyledNumberInput
+                  value={parseFloat(scaleZ) || 1}
+                  step={0.1}
+                  onChange={(v) => {
+                    setScaleZ(String(v));
+                    const num = v || 1;
+                    setMeshes(prev => prev.map(mesh => ({
+                      ...mesh,
+                      scale: Array.isArray(mesh.scale)
+                        ? [mesh.scale[0] || 1, mesh.scale[1] || 1, num]
+                        : [mesh.scale || 1, mesh.scale || 1, num]
+                    })));
+                  }}
+                />
               </div>
           </div>
 
